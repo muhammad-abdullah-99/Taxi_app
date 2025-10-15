@@ -1,0 +1,508 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\AppUser;
+use App\Models\Company;
+use App\Models\Vehicle;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
+
+
+class AuthAppController extends Controller
+{
+    public function login(Request $request)
+    {
+
+        $validator = Validator::make($request->all(), [
+            'mobile' => 'required|string',
+        ]);
+
+        $lang = $request->lang ?? 'en';
+        $messages = [
+            'en' => [
+                'invalid_input' => 'Invalid input.',
+                'driver_not_found' => 'Driver not found.',
+                'account_pending' => 'Please wait until your account is approved.',
+                'otp_sent' => 'OTP sent to your mobile number.',
+            ],
+            'ar' => [
+                'invalid_input' => 'إدخال غير صالح.',
+                'driver_not_found' => 'لم يتم العثور على السائق.',
+                'account_pending' => 'يرجى الانتظار حتى تتم الموافقة على حسابك.',
+                'otp_sent' => 'تم إرسال رمز OTP إلى رقم جوالك.',
+            ]
+        ];
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $messages[$lang]['invalid_input'],
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $driver = AppUser::where('mobile', $request->mobile)->with(['company', 'vehicle'])->first();
+        if (!$driver) {
+            $driver = AppUser::where('name', 'guest')->first();
+        }
+        if (!$driver) {
+            return response()->json([
+                'success' => false,
+                'message' => $messages[$lang]['driver_not_found'],
+            ], 404);
+        }
+        if (!$driver->status) {
+            return response()->json([
+                'success' => true,
+                'user' => $driver,
+                'message' => $messages[$lang]['account_pending'],
+            ], 200);
+        }
+
+        // Generate OTP
+        $otp = mt_rand(1000, 9999);
+
+        if ($request->mobile == '0512345678'):
+            $otp = 1111;
+        endif;
+        if ($request->mobile == '0560637609'):
+            $otp = 1111;
+        endif;
+
+        $driver->otp = $otp;
+
+
+        $driver->mobile = $request->mobile;
+        $driver->otp_expires_at = now()->addMinutes(10);
+        if ($request->mobile == '923228937188'):
+            $driver->otp_expires_at = now()->addMinutes(10000);
+        endif;
+        $driver->save();
+
+        // try {
+        //     $response = Http::withHeaders([
+        //         'Authorization' => 'Bearer ' . config('services.taqnyat.bearer_token'),
+        //         'Content-Type' => 'application/json',
+        //     ])->post(config('services.taqnyat.url'), [
+        //         'sender' => config('services.taqnyat.sender'),
+        //         'recipients' => [$driver->mobile],
+        //         'body' => "Your OTP code is: $otp\nValid for 10 minutes"
+        //     ]);
+
+        //     if (!$response->successful()) {
+        //         Log::error('Taqnyat SMS Failed', ['response' => $response->body()]);
+        //     }
+        // } catch (\Exception $e) {
+        //     Log::info('Taqnyat URL', ['url' => config('services.taqnyat.url')]);
+        //     Log::error('SMS Send Error', [
+        //         'error' => $e->getMessage(),
+        //         'trace' => $e->getTraceAsString(),
+        //     ]);
+        // }
+
+        
+        $signature = 'AwHvLfJC9I9'; // ← ضع هنا App Signature Hash اللي طلعته من تطبيق Android
+        $body = "<#> Your OTP code is: $otp. Valid for 10 minutes.\n$signature";
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . config('services.taqnyat.bearer_token'),
+                'Content-Type' => 'application/json',
+            ])->post(config('services.taqnyat.url'), [
+                'sender' => config('services.taqnyat.sender'),
+                'recipients' => [$driver->mobile],
+                'body' => $body,
+            ]);
+            if (!$response->successful()) {
+                Log::error('Taqnyat SMS Failed', ['response' => $response->body()]);
+            }
+        } catch (\Exception $e) {
+            Log::info('Taqnyat URL', ['url' => config('services.taqnyat.url')]);
+            Log::error('SMS Send Error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+        }
+
+
+        return response()->json([
+            'success' => true,
+            'user' => $driver->load(['company', 'vehicle']),
+            'otp' => $otp,
+            'message' => $messages[$lang]['otp_sent'],
+        ], 200);
+    }
+
+    // public function verifyOtp(Request $request)
+    // {
+    //     $validator = Validator::make($request->all(), [
+    //         'mobile' => 'required|string',
+    //         'otp' => 'required|string|digits:4',
+    //     ]);
+
+    //     $lang = $request->lang ?? 'en'; // Default to English if $lang is not provided
+
+    //     // Define messages in both languages
+    //     $messages = [
+    //         'en' => [
+    //             'invalid_input' => 'Invalid input.',
+    //             'driver_not_found' => 'Driver not found.',
+    //             'account_pending' => 'Please wait until admin approves your account.',
+    //             'invalid_otp' => 'Invalid or expired OTP.',
+    //             'login_success' => 'Login successful.',
+    //         ],
+    //         'ar' => [
+    //             'invalid_input' => 'إدخال غير صالح.',
+    //             'driver_not_found' => 'لم يتم العثور على السائق.',
+    //             'account_pending' => 'يرجى الانتظار حتى يوافق المشرف على حسابك.',
+    //             'invalid_otp' => 'رمز OTP غير صالح أو منتهي الصلاحية.',
+    //             'login_success' => 'تم تسجيل الدخول بنجاح.',
+    //         ]
+    //     ];
+
+    //     if ($validator->fails()) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => $messages[$lang]['invalid_input'],
+    //             'errors' => $validator->errors(),
+    //         ], 422);
+    //     }
+
+    //     // $driver = AppUser::where('mobile', $request->mobile)->where('user_type', 1)->where('name','!=','guest')->first();
+    //     $driver = AppUser::where('mobile', $request->mobile)->where('user_type', 1)->first();
+
+    //     if (!$driver) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => $messages[$lang]['driver_not_found'],
+    //         ], 404);
+    //     }
+
+    //     if ($driver->status == 0) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => $messages[$lang]['account_pending'],
+    //             'status'=>$driver->status,
+    //         ], 404);
+    //     }
+
+    //     if ($driver->otp !== $request->otp || now()->gt($driver->otp_expires_at)) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => $messages[$lang]['invalid_otp'],
+    //         ], 401);
+    //     }
+
+    //     // Clear OTP after successful verification
+    //     if ($request->mobile == '0966512345678'):
+    //         $driver->otp = 1111;
+    //         else:
+
+    //     $driver->otp = null;
+    //         endif;
+    //     $driver->save();
+
+    //     // Generate authentication token
+    //     // $token = $driver->createToken('auth_token')->plainTextToken;
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => $messages[$lang]['login_success'],
+    //         // 'token' => $token,
+    //         'driver' => $driver,
+    //     ], 200);
+    // }
+    public function verifyOtp(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'mobile' => 'required|string',
+            'otp' => 'required|string|digits:4',
+        ]);
+
+        $lang = $request->lang ?? 'en'; // Default to English if not provided
+
+        // Define messages in both languages
+        $messages = [
+            'en' => [
+                'invalid_input' => 'Invalid input.',
+                'driver_not_found' => 'Driver not found.',
+                'account_pending' => 'Please wait until admin approves your account.',
+                'invalid_otp' => 'Invalid or expired OTP.',
+                'login_success' => 'Login successful.',
+            ],
+            'ar' => [
+                'invalid_input' => 'إدخال غير صالح.',
+                'driver_not_found' => 'لم يتم العثور على السائق.',
+                'account_pending' => 'يرجى الانتظار حتى يوافق المشرف على حسابك.',
+                'invalid_otp' => 'رمز OTP غير صالح أو منتهي الصلاحية.',
+                'login_success' => 'تم تسجيل الدخول بنجاح.',
+            ]
+        ];
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $messages[$lang]['invalid_input'],
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $driver = AppUser::where('mobile', $request->mobile)->first();
+
+        if (!$driver) {
+            return response()->json([
+                'success' => false,
+                'message' => $messages[$lang]['driver_not_found'],
+            ], 404);
+        }
+
+        if ($driver->status == 0) {
+            return response()->json([
+                'success' => false,
+                'message' => $messages[$lang]['account_pending'],
+                'status' => $driver->status,
+            ], 404);
+        }
+
+        if ($driver->otp !== $request->otp || now()->gt($driver->otp_expires_at)) {
+            return response()->json([
+                'success' => false,
+                'message' => $messages[$lang]['invalid_otp'],
+            ], 401);
+        }
+
+        // Clear OTP after successful verification
+        if ($request->mobile == '0512345678') {
+            $driver->otp = 1111;
+        } elseif ($request->mobile == '0560637609') {
+            $driver->otp = 1111;
+        } else {
+            $driver->otp = null;
+        }
+        $driver->save();
+
+        // Generate authentication token
+        $token = auth()->guard('api')->login($driver); // تسجيل الدخول وإنشاء التوكن
+
+        return $this->createNewToken($token);
+    }
+    public function createNewToken($token)
+    {
+        return response()->json([
+            'driver' => auth()->guard('api')->user(),
+            'access_token' => $token,
+            'token_type' => 'bearer',
+            'expires_in' => auth()->guard('api')->factory()->getTTL() * 60000,
+        ]);
+    }
+    //
+    function resendOTP(Request $request)
+    {
+
+        $driver = AppUser::where('mobile', $request->mobile)->first();
+
+
+        if (!$driver) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User Not Found',
+            ], 404);
+        }
+
+
+        $lang = $request->lang ?? 'en';
+        $messages = [
+            'en' => [
+                'invalid_input' => 'Invalid input.',
+                'driver_not_found' => 'Driver not found.',
+                'account_pending' => 'Please wait until your account is approved.',
+                'otp_sent' => 'OTP sent to your mobile number.',
+            ],
+            'ar' => [
+                'invalid_input' => 'إدخال غير صالح.',
+                'driver_not_found' => 'لم يتم العثور على السائق.',
+                'account_pending' => 'يرجى الانتظار حتى تتم الموافقة على حسابك.',
+                'otp_sent' => 'تم إرسال رمز OTP إلى رقم جوالك.',
+            ]
+        ];
+        $otp = mt_rand(1000, 9999);
+        $driver->otp = $otp;
+        $driver->mobile = $request->mobile;
+        $driver->otp_expires_at = now()->addMinutes(10);
+        $driver->save();
+        // Send SMS via Taqnyat
+
+
+
+
+    $signature = 'AwHvLfJC9I9'; // ← ضع هنا App Signature Hash اللي طلعته من تطبيق Android
+    $body = "<#> Your OTP code is: $otp. Valid for 10 minutes.\n$signature";
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . config('services.taqnyat.bearer_token'),
+                'Content-Type' => 'application/json',
+            ])->post(config('services.taqnyat.url'), [
+                'sender' => config('services.taqnyat.sender'),
+                'recipients' => [$driver->mobile],
+                'body'=> $body,
+            ]);
+            if (!$response->successful()) {
+                Log::error('Taqnyat SMS Failed', ['response' => $response->body()]);
+            }
+        } catch (\Exception $e) {
+            Log::info('Taqnyat URL', ['url' => config('services.taqnyat.url')]);
+            Log::error('SMS Send Error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+        }
+        return response()->json([
+            'success' => true,
+            'user' => $driver,
+            'otp' => $otp,
+            'message' => $messages[$lang]['otp_sent'],
+        ], 200);
+    }
+
+    public function logout(request $request)
+    {
+        $lang = $request->lang ?? 'en';
+        $messages = [
+            'en' => ['logout_success' => 'Logout successful.'],
+            'ar' => ['logout_success' => 'تم تسجيل الخروج بنجاح.']
+        ];
+
+        auth()->logout();
+        return response()->json([
+            'message' => $messages[$lang]['logout_success'],
+        ], 201);
+    }
+    // delete account 
+    public function deleteAccount(Request $request)
+    {
+        $user = $request->user();
+        DB::beginTransaction();
+        try {
+            $vehicle = Vehicle::where('user_id', $user->id);
+            if ($vehicle) {
+                $vehicle->delete();
+            }
+            $company = Company::where('user_id', $user->id);
+            if ($company) {
+                $company->delete();
+            }
+            $user->tokens()->delete();
+            $user->delete();
+            DB::commit();
+            return response()->json([
+                'success' => true,
+                'message' => 'Account deleted successfully.',
+            ], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while deleting the account.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+    public function profile($id)
+    {
+        $driver = AppUser::where('id', $id)->with(['company', 'vehicle'])->first();
+        return response()->json([
+            'driver' => $driver,
+            'message' => ' المعلومات الشخصية  .',
+        ], 200);
+    }
+
+    public function creatNewUser(request $request)
+    {
+
+        $existingGuest = AppUser::where('mobile', $request->mobile)
+            ->where('name', 'guest')
+            ->first();
+
+        if ($existingGuest) {
+            // حدث البيانات
+            $existingGuest->update([
+                'mobile' => 'guest',
+            ]);
+        }
+        $user = AppUser::create([
+            'name' => $request->name,
+            'mobile' => $request->mobile,
+            'address' => $request->address,
+            'user_type' => 2,
+            'status' => 1,
+        ]);
+        // Generate authentication token
+        $token = auth()->guard('api')->login($user); // تسجيل الدخول وإنشاء التوكن
+
+        return $this->createNewUserToken($token);
+    }
+    public function createNewUserToken($token)
+    {
+        return response()->json([
+            'message' => 'success',
+            'user' => auth()->guard('api')->user(),
+            'access_token' => $token,
+            'token_type' => 'bearer',
+            'expires_in' => auth()->guard('api')->factory()->getTTL() * 60000,
+        ]);
+    }
+    //users
+    public function users()
+    {
+        $users = AppUser::where('user_type', 2)->get();
+        return view('admin.transport.user.users', compact('users'));
+    }
+    public function updateUserTabStatus($id)
+{
+    // إيجاد المستخدم بالـ id
+    $user = AppUser::find($id);
+
+    if ($user) {
+        $user->user_type = 1;
+        $user->status = null;
+        $user->save();
+
+          toastr()->success('تمت بنجاح');
+          return back();
+    } else {
+        toastr()->error('فضل');
+          return back();
+    }
+}
+
+
+    ////////////////////////
+
+    public function deleteUser($id)
+{
+    // $user = AppUser::find($id);
+
+    // if (!$user) {
+    //     return response()->json([
+    //         'status' => false,
+    //         'message' => 'User not found',
+    //     ], 404);
+    // }
+
+    // $user->delete();
+
+    // return response()->json([
+    //     'status' => true,
+    //     'message' => 'User deleted successfully',
+    // ]);
+    return response()->json([
+        'success' => false,
+        'message' => 'User deletion temporarily disabled for investigation',
+        'error' => 'DELETION_BLOCKED'
+    ], 403);
+}
+
+}

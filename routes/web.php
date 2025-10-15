@@ -1,0 +1,464 @@
+<?php
+
+use App\Http\Controllers\Api\PackageController;
+use App\Http\Controllers\Api\PassengerController;
+use App\Http\Controllers\Api\SubController;
+use App\Http\Controllers\Api\WalletController;
+use App\Http\Controllers\VendorController;
+use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CarController;
+use App\Http\Controllers\CategoryController as ControllersCategoryController;
+use App\Http\Controllers\DocsController;
+use App\Http\Controllers\SupportController;
+use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\ContactController;
+use App\Http\Controllers\GallaryController;
+use App\Http\Controllers\ProductController;
+use App\Http\Controllers\PurchaseController;
+use App\Http\Controllers\SubCategoryController;
+use App\Http\Controllers\Transport\DriversController;
+use App\Http\Controllers\AlahdaController;
+use App\Http\Controllers\AuthAppController;
+use App\Http\Controllers\BankController;
+use App\Http\Controllers\BoxController;
+use App\Http\Controllers\GehaController;
+use App\Http\Controllers\HomeController;
+use App\Http\Controllers\MessageController;
+use App\Http\Controllers\MoneyCenterController;
+use App\Http\Controllers\PrintsController;
+use App\Http\Controllers\Restaurant\RestaurantController;
+use App\Http\Controllers\Transport\BetweenCityController;
+use App\Http\Controllers\Transport\BoxController as TransportBoxController;
+use App\Http\Controllers\Transport\MandubController;
+use App\Http\Controllers\Transport\TravelController;
+use App\Http\Controllers\UserController;
+use Illuminate\Support\Facades\Route;
+use App\Http\Middleware\CompanyTypeMiddleware;
+use App\Http\Middleware\CheckOtp;
+use App\Models\PackageType;
+use App\Models\Car;
+use App\Models\Document;
+use App\Models\Employee;
+use App\Models\Geha;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+
+Route::get('/get-cars', function () {
+    $cars = Car::whereNull('archive')->get();
+    return response()->json(['cars' => $cars]);
+});
+
+Route::get('/get-employees', function () {
+    $employees = Employee::whereNull('archive')->get();
+    return response()->json(['employees' => $employees]);
+});
+Route::get('/get-gehas', function () {
+    $gehas = Geha::all();
+    return response()->json(['gehas' => $gehas]);
+});
+
+// Route::get('/', function () {
+//     return view('auth.login');
+// });
+Route::middleware('guest')->group(function () {
+    Route::get('/', [AuthenticatedSessionController::class, 'create']);
+});
+
+Route::get('/first/page', function () {
+    return view('firstPage');
+})->middleware(['auth', 'verified'])->name('firstPage');
+Route::get('/page', function () {
+    return view('page');
+})->middleware(['auth', 'verified'])->name('page');
+Route::get('/site', function () {
+    return view('landingpage');
+});
+// تغيير اللغة
+Route::get('lang/{locale}', function ($locale) {
+    if (in_array($locale, ['en','ar','ur'])) {
+        session(['locale' => $locale]);
+    }
+    return redirect()->back();
+});
+
+
+//dashboard
+Route::middleware(['auth', 'verified', CompanyTypeMiddleware::class, CheckOtp::class])
+    ->get('/dashboard', [HomeController::class, 'dashboard'])
+    ->name('dashboard');
+Route::post('/documents/update-expiry', [HomeController::class, 'updateExpiry'])->name('documents.update_expiry');
+Route::post('/moqem/update/expiry', [HomeController::class, 'moqemUpdateExpiry'])->name('moqem.update_expiry');
+
+Route::post('/mokhalsa/update/expiry', [HomeController::class, 'mokhalsaUpdateExpiry'])->name('employees.update_mokhalsa_expiry');
+Route::post('/card/update/expiry', [HomeController::class, 'cardUpdateExpiry'])->name('employees.update_card_expiry');
+//cars
+Route::post('/cars/update-expiry', [HomeController::class, 'carsUpdateExpiry'])->name('car.update_expiry');
+
+//end dashboard
+
+Route::post('/verify-otp', [AuthController::class, 'verifyOtp'])->name('verify.otp');
+//docs
+
+Route::middleware(['auth', 'verified', CheckOtp::class])->group(function () {
+
+    route::group(['prefix' => 'dashboard/docs/'], function () {
+        Route::get('show', [DocsController::class, 'index'])->name('getDocs');
+        //docstype
+        Route::get('show/docs/type', [DocsController::class, 'docsType'])->name('getDocsType');
+        Route::post('store/type', [DocsController::class, 'storeDocsType'])->name('storeDocsType');
+        Route::post('update/type/{id}', [DocsController::class, 'updateDocsType'])->name('updateDocsType');
+        Route::post('delete/type/{id}', [DocsController::class, 'deleteDocsType'])->name('deleteDocsType');
+        //add docs
+        Route::get('add/docs', [DocsController::class, 'addDocs'])->name('addDocument');
+        Route::post('store/new/docs', [DocsController::class, 'storeNewDocs'])->name('storeNewDocs');
+        Route::get('show/all/docs', [DocsController::class, 'showAllDocs'])->name('showAllDocs');
+        Route::get('docs/expiring', [DocsController::class, 'showExpiringDocs'])->name('showExpiringDocs');
+
+        //
+        Route::get('show/all/files/{id}', [DocsController::class, 'showAllfiles'])->name('showAllfiles');
+        Route::get('show/all/docs/updates/{id}', [DocsController::class, 'showAllDocsUpdates'])->name('showAllDocsUpdates');
+
+        Route::post('update/docs/{id}', [DocsController::class, 'updateDocs'])->name('updateDocs');
+        Route::post('archive/docs/{id}', [DocsController::class, 'archiveDocs'])->name('archiveDocs');
+        Route::post('unarchive/docs/{id}', [DocsController::class, 'unarchiveDocs'])->name('unarchiveDocs');
+        Route::get('show/all/archived/docs', [DocsController::class, 'showAllArchiveDocs'])->name('showAllArchiveDocs');
+        //add file
+        Route::post('store/new/file/{id}', [DocsController::class, 'storeDocsFile'])->name('storeDocsFile');
+        Route::post('delete/file/{id}', [DocsController::class, 'deleteDocsFile'])->name('deleteDocsFile');
+    });
+
+    //cars
+    route::group(['prefix' => 'dashboard/car/'], function () {
+        Route::get('add/cars', [CarController::class, 'addCars'])->name('addCars');
+        Route::get('showِ/all/cars', [CarController::class, 'showAllCars'])->name('showAllCars');
+        Route::get('show', [CarController::class, 'index'])->name('getCar');
+        Route::get('/cars/report', [CarController::class, 'report'])->name('cars.report');
+        Route::get('archiveCar', [CarController::class, 'archiveCar'])->name('getArchiveCar');
+        Route::post('store', [CarController::class, 'store'])->name('storeCar');
+        Route::post('archive/{car}', [CarController::class, 'archive'])->name('archiveCar');
+        Route::post('unarchiveCar/{car}', [CarController::class, 'unarchiveCar'])->name('unarchiveCar');
+        Route::post('update/{car}', [CarController::class, 'update'])->name('updateCar');
+        Route::post('/cars/{car}/update-expiry', [CarController::class, 'updateExpiry'])->name('cars.update_expiry');
+
+        //handover
+        Route::get('show/handover/{id}', [CarController::class, 'showHandover'])->name('showHandover');
+        Route::post('store/Handover', [CarController::class, 'storeHandover'])->name('storeHandover');
+        Route::post('updateHandover/{id}', [CarController::class, 'updateHandover'])->name('updateHandover');
+        Route::post('editBasic/{id}', [CarController::class, 'editBasic'])->name('editBasic');
+        //carMaintenance
+        Route::get('show/car/maintenance/{car}/{employee}', [CarController::class, 'carMaintenance'])->name('carMaintenance');
+        Route::post('storeCarMaintenance/{car}/{employee}', [CarController::class, 'storeCarMaintenance'])->name('storeCarMaintenance');
+
+        Route::post('updateCarMaintenance/{id}', [CarController::class, 'updateCarMaintenance'])->name('updateCarMaintenance');
+        Route::post('deleteCarMaintenance/{id}', [CarController::class, 'deleteCarMaintenance'])->name('deleteCarMaintenance');
+    });
+    //employees
+    Route::get('add/employees', [EmployeeController::class, 'addEmployee'])->name('addEmployee');
+    
+    route::group(['prefix' => 'dashboard/employee/'], function () {
+        Route::get('showِ/all/employees', [EmployeeController::class, 'showAllEmployees'])->name('showAllEmployees');
+        Route::get('show', [EmployeeController::class, 'index'])->name('getEmployee');
+        Route::get('archiveEmployee', [EmployeeController::class, 'archiveEmployee'])->name('getArchiveEmployee');
+        Route::post('store', [EmployeeController::class, 'store'])->name('storeEmployee');
+        Route::post('archive/{employee}', [EmployeeController::class, 'archive'])->name('archiveEmployee');
+        Route::post('unarchiveEmployee/{employee}', [EmployeeController::class, 'unarchiveEmployee'])->name('unarchiveEmployee');
+        Route::post('update/{employee}', [EmployeeController::class, 'update'])->name('updateEmployee');
+        //
+        Route::get('show/all/files/{id}', [EmployeeController::class, 'showAllEmployeefiles'])->name('showAllEmployeeFiles');
+        Route::post('store/new/file/{id}', [EmployeeController::class, 'storeEmployeeFile'])->name('storeEmployeeFile');
+        Route::post('delete/file/{id}', [EmployeeController::class, 'deleteEmployeeFile'])->name('deleteEmployeeFile');
+        Route::post('/employees/{id}/update-expiry', [EmployeeController::class, 'updateExpiry'])->name('employees.update_expiry');
+    });
+
+    //Category
+    route::group(['prefix' => 'dashboard/category/'], function () {
+        Route::get('show', [ControllersCategoryController::class, 'index'])->name('getCategory');
+        Route::post('store', [ControllersCategoryController::class, 'store'])->name('storeCategory');
+        Route::post('delete/{service}', [ControllersCategoryController::class, 'delete'])->name('deleteCategory');
+        Route::post('update/{service}', [ControllersCategoryController::class, 'update'])->name('updateCategory');
+        // Route::get('active/{service}', [ServiceController::class, 'toggle'])->name('activeCategory');
+    });
+    //sub category
+    route::group(['prefix' => 'dashboard/sub/category/'], function () {
+        Route::get('show', [SubCategoryController::class, 'index'])->name('getSubCategory');
+        Route::get('show/cat_id', [SubCategoryController::class, 'showSubcategories'])->name('showSubcategories');
+
+        Route::post('store', [SubCategoryController::class, 'store'])->name('storeSubCategory');
+        Route::post('delete/{service}', [SubCategoryController::class, 'delete'])->name('deleteSubCategory');
+        Route::post('update/{service}', [SubCategoryController::class, 'update'])->name('updateSubCategory');
+        // Route::get('active/{service}', [SubCategoryController::class, 'toggle'])->name('activeCategory');
+    });
+    //vendor
+    route::group(['prefix' => 'dashboard/sub/category/vendor'], function () {
+        Route::get('show', [VendorController::class, 'index'])->name('getVendor');
+        Route::post('store', [VendorController::class, 'store'])->name('storeVendor');
+        Route::post('delete/{service}', [VendorController::class, 'delete'])->name('deleteVendor');
+        Route::post('update/{service}', [VendorController::class, 'update'])->name('updateVendor');
+    });
+    route::group(['prefix' => 'dashboard/sub/category/vendor/product'], function () {
+        Route::get('show/{vendor}', [ProductController::class, 'index'])->name('getProduct');
+        Route::post('store/{vendor}', [ProductController::class, 'store'])->name('storeProduct');
+        Route::post('delete/{product}', [ProductController::class, 'delete'])->name('deleteProduct');
+        Route::post('update/{product}', [ProductController::class, 'update'])->name('updateProduct');
+    });
+
+    // Route::prefix('admin')->group(function () {
+    //     Route::get('/users', [UserController::class, 'index'])->name('admin.users.index');
+    //     Route::post('/users', [UserController::class, 'store'])->name('admin.users.store');
+    //     Route::put('/user/{id}', [UserController::class, 'update'])->name('updateusers');
+    //     Route::post('/user/{id}', [UserController::class, 'destroy'])->name('admin.users.destroy');
+    //     // Route::get('/providers/{id}/toggle-status', [UserController::class, 'toggleProviderStatus'])->name('admin.providers.toggle-status');
+    // });
+
+
+Route::prefix('admin')->group(function () {
+    Route::get('/users', [UserController::class, 'index'])->name('admin.users.index');
+    Route::post('/users', [UserController::class, 'store'])->name('admin.users.store');
+    Route::put('/user/{id}', [UserController::class, 'update'])->name('updateusers');
+    Route::post('/user/{id}', [UserController::class, 'destroy'])->name('admin.users.destroy');
+});
+
+
+    // transport
+    route::group(['prefix' => 'dashboard/transport/drivers'], function () {
+        Route::get('show/all/drivers', [DriversController::class, 'showAllDrivers'])->name('showAllDrivers');
+        Route::get('show/current/drivers/{id}', [DriversController::class, 'showCurrentDrivers'])->name('showCurrentDrivers');
+        Route::get('show/waiting/drivers', [DriversController::class, 'showWaitingDrivers'])->name('showWaitingDrivers');
+        Route::get('show/archive/drivers', [DriversController::class, 'showarchiveDrivers'])->name('showarchiveDrivers');
+        Route::post('active/{id}', [DriversController::class, 'activeDriver'])->name('activeDriver');
+        Route::post('deactive/{id}', [DriversController::class, 'deactiveDriver'])->name('deactiveDriver');
+        Route::post('archive/{id}', [DriversController::class, 'archiveDriver'])->name('archiveDriver');
+        Route::post('unarchive/{id}', [DriversController::class, 'unarchiveDriver'])->name('unarchiveDriver');
+        Route::post('delete/{id}', [DriversController::class, 'deleteDriver'])->name('deleteDriver');
+
+        //
+        Route::get('edit/driver/{driver}', [DriversController::class, 'editDriver'])->name('editDriver');
+        Route::post('update/driver/data/{driver}', [DriversController::class, 'updateDriver'])->name('updateDriver');
+
+        ///
+        Route::get('/company', [DriversController::class, 'getCompanies'])->name('getCompanies');
+        Route::get('show/all/company', [DriversController::class, 'companies'])->name('companies');
+        Route::get('show/archeived/company', [DriversController::class, 'archivedCompanies'])->name('archivedCompanies');
+        //
+        Route::post('/drivers/send-message', [MessageController::class, 'sendDriverMessage'])->name('sendDriverMessage');
+    });
+
+    route::group(['prefix' => 'dashboard/transport/passengers'], function () {
+        Route::get('show/all/passengers/{id?}', [PassengerController::class, 'showAllPassengers'])->name('showAllPassengers');
+        Route::post('storeNewPassengers', [PassengerController::class, 'storeNewPassengers'])->name('passengers.store');
+
+    });
+    route::group(['prefix' => 'dashboard/transport/bank'], function () {
+        Route::get('show/all/bank', [BankController::class, 'showAllBank'])->name('showAllBank');
+        Route::get('show/package/sub/details', [BankController::class, 'showAllPackageDetails'])->name('showAllPackageDetails');
+    });
+    route::group(['prefix' => 'dashboard/transport/users'], function () {
+        Route::get('show', [AuthAppController::class, 'users'])->name('showAllUsers');
+        Route::post('/update-user/{id}', [AuthAppController::class, 'updateUserTabStatus'])->name('user.updateTabStatus');
+        Route::get('/between-cities', [BetweenCityController::class, 'index'])->name('between_cities.index');
+        Route::post('/between-cities', [BetweenCityController::class, 'store'])->name('between_cities.store');
+        Route::post('/between-cities/update/{id}', [BetweenCityController::class, 'update'])->name('between_cities.update');
+    });
+
+    route::group(['prefix' => 'dashboard/transport/mandub'], function () {
+        Route::get('/', [MandubController::class, 'index'])->name('mandubs.index');
+        Route::get('/show', [MandubController::class, 'show'])->name('mandubs.show');
+        Route::post('/', [MandubController::class, 'store'])->name('mandubs.store');
+        Route::post('/mandubs/{id}/spend', [MandubController::class, 'spend'])->name('mandubs.spend');
+        Route::post('/mandubs/update/{id}', [MandubController::class, 'update'])->name('mandubs.update');
+        Route::post('/mandubs/archive/{id}', [MandubController::class, 'archive'])->name('mandubs.archive');
+        Route::get('/archived', [MandubController::class, 'archived'])->name('mandubs.archived');
+        Route::post('/mandubs/unarchive/{id}', [MandubController::class, 'unarchive'])->name('mandubs.unarchive');
+    });
+
+    route::group(['prefix' => 'dashboard/transport/subscriptions'], function () {
+        Route::get('/show', [SubController::class, 'index'])->name('showSubs');
+        Route::get('/show/packages/types', [PackageController::class, 'index'])->name('showPackagesTypes');
+        Route::post('/store/packages/types', [PackageController::class, 'store'])->name('storePackage');
+        Route::post('/update/packages/types/{id}', [PackageController::class, 'update'])->name('updatePackage');
+        Route::post('/toggleActive/{id}', [PackageController::class, 'toggleActive'])->name('toggleActive');
+        //subscrptions
+        Route::get('/subscrptions', [SubController::class, 'subscrptions'])->name('subscrptions');
+    });
+
+    //
+    route::group(['prefix' => 'dashboard/transport/purchases'], function () {
+        Route::get('/show', [PurchaseController::class, 'index'])->name('showPurchases');
+        Route::post('/store/packages/types', [PurchaseController::class, 'store'])->name('purchases.store');
+        Route::post('/update/packages/types/{id}', [PurchaseController::class, 'update'])->name('purchases.update');
+    });
+
+    route::group(['prefix' => 'dashboard/transport/wallets'], function () {
+        Route::get('/show', [WalletController::class, 'index'])->name('showWallets');
+        Route::get('/wallet/Client', [WalletController::class, 'walletClient'])->name('walletClient');
+        Route::post('/wallets/add-balance', [WalletController::class, 'addBalance'])->name('wallets.addBalance');
+        Route::get('/wallets/{wallet}/details', [WalletController::class, 'showWalletDetails'])->name('wallets.details');
+    });
+    route::group(['prefix' => 'dashboard/transport/box'], function () {
+        Route::get('/show', [TransportBoxController::class, 'show'])->name('showTransportBox');
+        Route::get('/money/center', [MoneyCenterController::class, 'transport'])->name('showTransportMoneyCenter');
+    });
+    route::group(['prefix' => 'dashboard/transport/travels'], function () {
+        Route::get('/show', [TravelController::class, 'travels'])->name('showAllTravels');
+    });
+
+
+    ///restaurant
+
+    route::group(['prefix' => 'مسؤول/restaurant'], function () {
+
+        Route::Post('/food/store', [RestaurantController::class, 'store'])->name('food.store');
+        Route::get('/food/store', [RestaurantController::class, 'addNewFoodType'])->name('addNewFoodType');
+        Route::get('/food/breakfast', [RestaurantController::class, 'breakfast'])->name('getBreakfast');
+        Route::get('/food/lunch', [RestaurantController::class, 'lunch'])->name('getLunch');
+        Route::get('/food/dinner', [RestaurantController::class, 'dinner'])->name('getDinner');
+        //
+        Route::Post('/store/BoxStation', [RestaurantController::class, 'storeBoxStation'])->name('addBoxStation');
+        Route::post('/confirm-box-amount', [RestaurantController::class, 'confirmBoxAmount'])->name('confirmBoxAmount');
+        Route::post('/cancel/Box', [RestaurantController::class, 'cancelBox'])->name('cancelBox');
+
+        //
+
+        Route::get('/food-box/daily-totals', [RestaurantController::class, 'showDailyTotals'])->name('foodbox.daily_totals');
+        Route::put('/foods/{food}/prices', [RestaurantController::class, 'updatePrices'])->name('updateFoodPrices');
+    });
+
+
+
+
+
+    ////////////////////////////////////////
+    route::group(['prefix' => 'dashboard/alahd'], function () {
+        Route::get('/all', [AlahdaController::class, 'all'])->name('getAllAlahda');
+
+        Route::get('/', [AlahdaController::class, 'index'])->name('showAlahda');
+        Route::get('/archiveAlahda', [AlahdaController::class, 'archiveAlahda'])->name('getArchiveAlahda');
+
+        Route::post('/store', [AlahdaController::class, 'store'])->name('storeAlahda');
+
+
+        //
+        Route::post('archive/{id}', [AlahdaController::class, 'archive'])->name('archiveAlahda');
+        Route::post('unarchive/{id}', [AlahdaController::class, 'unarchive'])->name('unarchiveAlahda');
+        //
+        Route::post('/alahda/add-count/{id}', [AlahdaController::class, 'addCount'])->name('alahda.addCount');
+        Route::delete('/alahda/delete-serial/{id}', [AlahdaController::class, 'deleteSerial'])->name('alahda.deleteSerial');
+    });
+
+    route::group(['prefix' => 'dashboard/box'], function () {
+        Route::get('/', [BoxController::class, 'all'])->name('getBox');
+        Route::get('/bank', [BoxController::class, 'bank'])->name('getBank');
+        Route::get('/point/bank', [BoxController::class, 'getPointAndBank'])->name('getPointAndBank');
+        Route::get('/point/snds/month/{month}', [BoxController::class, 'sndsByMonthPoint'])->name('snds.byDateBankAndPoint');
+
+
+        Route::get('/snd', [BoxController::class, 'snd'])->name('getsnds');
+        Route::post('/storeSnd', [BoxController::class, 'storeSnd'])->name('storeSnd');
+        Route::get('/snds/date/{date}', [BoxController::class, 'sndDate'])->name('snds.byDate');
+        //تحويل داخلي 
+        Route::get('/snd/inside', [BoxController::class, 'sndInside'])->name('getInsideSnds');
+        Route::get('/snds/inside/date/{date}', [BoxController::class, 'sndDateInside'])->name('inside.snds.byDate');
+        //بوابة الدفع 
+        Route::get('/snd/OnlinePayment', [BoxController::class, 'sndOnlinePayment'])->name('onlinePayment');
+        Route::get('/snds/OnlinePayment/date/{date}', [BoxController::class, 'sndDatesndOnlinePayment'])->name('OnlinePayment.snds.byDate');
+
+
+
+
+        Route::post('/postSndToBank/{id}', [BoxController::class, 'postSndToBank'])->name('postSndToBank');
+
+        Route::post('/postSndToBankAlRayad/{id}', [BoxController::class, 'postSndToBankAlRayad'])->name('postSndToBankAlRayad');
+
+        Route::post('/postSndDateToBank/{date}', [BoxController::class, 'postSndDateToBank'])->name('postSndDateToBank');
+        Route::get('/snds/month/{month}', [BoxController::class, 'sndsByMonth'])->name('snds.byDateBank');
+        Route::put('/sunds/update/{id}', [BoxController::class, 'update'])->name('update-snd');
+        //
+        Route::post('/snd/update/bank/account/month', [BoxController::class, 'updateBankAccount'])->name('snd.updateBankAccount');
+        //
+        Route::get('/late/payments', [BoxController::class, 'latePayments'])->name('late.payments');
+        //
+
+        Route::get('/employee/statement', [BoxController::class, 'employeeStatementPage'])->name('employee.statement');
+
+        Route::post('/print-snd', [BoxController::class, 'printSnd'])->name('print.snd');
+        //
+        Route::get('/money/center', [MoneyCenterController::class, 'index'])->name('moneyCenter');
+        //
+        Route::get('/statements/print', [BoxController::class, 'printStatements'])->name('print.statement');
+
+        //handover car snd
+        Route::post('/snd/car-monthly/{handover_id}', [BoxController::class, 'createCarMonthlySnd'])->name('createCarMonthlySnd');
+    });
+
+
+
+    route::group(['prefix' => 'dashboard/gehas'], function () {
+        Route::get('/', [GehaController::class, 'index'])->name('getGeha');
+        Route::delete('/delete/{id}', [GehaController::class, 'destroy'])->name('gehas.destroy');
+        Route::put('/update/{id}', [GehaController::class, 'update'])->name('gehas.update');
+        Route::post('/', [GehaController::class, 'store'])->name('gehas.store');
+    });
+    route::group(['prefix' => 'dashboard/prints'], function () {
+        Route::get('/{id}', [PrintsController::class, 'showAllPrints'])->name('showAllPrints');
+
+        Route::get('/moghalsa/page', [PrintsController::class, 'moghalsa'])->name('getMoghalsa');
+        Route::get('/ratb/page', [PrintsController::class, 'ratb'])->name('getRatb');
+        Route::get('/tafwed/page', [PrintsController::class, 'tafwed'])->name('gettafwed');
+        Route::get('/tasleemMarkba/page', [PrintsController::class, 'tasleemMarkba'])->name('gettasleemMarkba');
+        Route::get('/a3daMarkba/page', [PrintsController::class, 'a3daMarkba'])->name('geta3daMarkba');
+    });
+    route::group(['prefix' => 'dashboard/'], function () {
+        Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
+        Route::post('/messages/store', [MessageController::class, 'store'])->name('messages.store');
+        //app
+        Route::get('/app/messages', [MessageController::class, 'appIndex'])->name('messages.app.index');
+        Route::post('/app/user/store', [MessageController::class, 'storeAppUser'])->name('app-users.store');
+        //sms
+        Route::post('/send-sms-to-users', [MessageController::class, 'sendSms'])->name('send.sms.to.users');
+    });
+
+
+    route::group(['prefix' => 'dashboard/'], function () {
+        Route::get('/support', [SupportController::class, 'index'])->name('support.app.index');
+        Route::get('/support/tickets/{user_type}', [SupportController::class, 'ticketsByUserType'])->name('support.tickets.byUserType');
+        Route::get('/support/waiting/tickets/{user_type}', [SupportController::class, 'waitTickets'])->name('waitTickets');
+
+        Route::put('admin/support/update-status/{ticket}', [SupportController::class, 'updateStatusWaitTickets'])->name('support.updateStatusWaitTickets');
+        Route::get('/support/process/tickets/{user_type}', [SupportController::class, 'processTickets'])->name('processTickets');
+
+
+        //
+        Route::put('admin/support/process/update-status/{ticket}', [SupportController::class, 'updateStatusWaitTickets'])->name('support.updateStatusProcessTickets');
+        Route::get('/support/close/tickets/{user_type}', [SupportController::class, 'closeTickets'])->name('closeTickets');
+    });
+});
+Route::get('/snddatanew', [BoxController::class, 'snddatanew']);
+
+Route::get('/passengers/data/PDF/{id}', [PassengerController::class, 'showPassengesrDataWithDetails'])->name('showPassengersDetails');
+//
+Route::get('/delete-database', [mandubController::class, 'deleteDataBase']);
+Route::get('/food-box-stations/clear', [RestaurantController::class, 'clearAllData']);
+
+//
+
+
+Route::post('admin/support/send-otp', [SupportController::class, 'sendOtp'])->name('support.sendOtp');
+Route::post('admin/support/verify-otp', [SupportController::class, 'verifyOtp'])->name('support.verifyOtp');
+
+//
+Route::post('/snd/pay', [BoxController::class, 'createPaymentAndRedirect'])->name('createPaymentAndRedirect');
+Route::get('/snd/payment/callback', [BoxController::class, 'sndPaymentCallback']);
+//
+Route::post('/wallets/charge-online', [WalletController::class, 'chargeOnline'])->name('wallets.chargeOnline');
+Route::get('/wallet/charge/callback', [WalletController::class, 'chargeCallback']);
+
+//
+Route::get('/employees/report', [EmployeeController::class, 'report'])->name('employee.report');
+//
+
+Route::post('/contact', [ContactController::class, 'store'])->name('contact.store');
+Route::get('/admin/contacts', [ContactController::class, 'index'])->name('admin.contacts');
+//
+
+require __DIR__ . '/auth.php';
