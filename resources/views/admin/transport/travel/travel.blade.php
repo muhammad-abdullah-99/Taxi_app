@@ -41,7 +41,7 @@
                             @foreach($travels as $travel)
                             <tr>
                                 <td>{{ $travel->id }}</td>
-                                <td>{{ $travel->appUser->name }}</td>
+                                <td>{{ $travel->appUser->name ?? 'N/A' }}</td>
                                 <td>{{ $travel->from }}</td>
                                 <td>{{ $travel->to }}</td>
                                 <td>{{ $travel->date }}</td>

@@ -339,6 +339,19 @@ public function showAllPassengers($id = null)
     // }
 
 
+// public function getUnassignedTravel()
+// {
+//     $travels = Travel::whereNull('user_id')
+//         ->where('status', 'Waiting')  // Only show the response of entries with waiting response
+//         ->with('between_city')
+//         ->get();
+        
+//     return response()->json([
+//         'message' => 'successfully.',
+//         'data' => $travels
+//     ]);
+// }
+
     public function getUnassignedTravel()
     {
         $travels = Travel::whereNull('user_id')->with('between_city')->get();

@@ -497,17 +497,17 @@ $deactive_documents = $total_documents - $active_documents ;
 
 
         //22222222222222
-        $activeCaptains = AppUser::where('status', 1)->where('user_type', 1)->where('name', '!=', 'guest')->count();
-        $pendingCaptains = AppUser::whereNull('status')->where('user_type', 1)->where('name', '!=', 'guest')->count();
+        $activeCaptains = AppUser::where('status', 1)->where('user_type', 'Driver')->where('name', '!=', 'guest')->count();
+        $pendingCaptains = AppUser::whereNull('status')->where('user_type', 'Driver')->where('name', '!=', 'guest')->count();
         $allCaptains = AppUser::where(function ($query) {
             $query->where('status', '!=', 2)
                 ->orWhereNull('status');
-        })->where('user_type', 1)->where('name', '!=', 'guest')->count();
+        })->where('user_type', 'Driver')->where('name', '!=', 'guest')->count();
 
         $passengers = Passenger::count(); //كشف االركاب 
 
-        $activeCaptainsData = AppUser::where('status', 1)->where('user_type', 1)->where('name', '!=', 'guest')->get();
-        $pendingCaptainsData = AppUser::whereNull('status')->where('user_type', 1)->where('name', '!=', 'guest')->get();
+        $activeCaptainsData = AppUser::where('status', 1)->where('user_type', 'Driver')->where('name', '!=', 'guest')->get();
+        $pendingCaptainsData = AppUser::whereNull('status')->where('user_type', 'Driver')->where('name', '!=', 'guest')->get();
 
 
 ////
@@ -522,7 +522,7 @@ $deactive_documents = $total_documents - $active_documents ;
     $data = [];
 
     foreach ($companyTypes as $type) {
-        $data[$type]['active'] = AppUser::where('user_type', 1)
+        $data[$type]['active'] = AppUser::where('user_type', 'Driver')
             ->where('status', 1)
             ->where('name', '!=', 'guest')
             ->whereHas('company', function ($q) use ($type) {
@@ -531,7 +531,7 @@ $deactive_documents = $total_documents - $active_documents ;
             ->with('company')
             ->get();
 
-        $data[$type]['pending'] = AppUser::where('user_type', 1)
+        $data[$type]['pending'] = AppUser::where('user_type', 'Driver')
             ->whereNull('status')
             ->where('name', '!=', 'guest')
             ->whereHas('company', function ($q) use ($type) {
@@ -540,7 +540,7 @@ $deactive_documents = $total_documents - $active_documents ;
             ->with('company')
             ->get();
 
-        $data[$type]['archived'] = AppUser::where('user_type', 1)
+        $data[$type]['archived'] = AppUser::where('user_type', 'Driver')
             ->where('status', 2)
             ->where('name', '!=', 'guest')
             ->whereHas('company', function ($q) use ($type) {

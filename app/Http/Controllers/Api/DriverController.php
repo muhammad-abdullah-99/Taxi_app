@@ -23,7 +23,7 @@ class DriverController extends Controller
 
     public function store(StoreFormRequest $request)
     {
-        $driver = AppUser::where('mobile', $request->mobile)->where('user_type', 1)->where('name', 'guest')->first();
+        $driver = AppUser::where('mobile', $request->mobile)->where('user_type', 'Driver')->where('name', 'guest')->first();
 
         if ($driver):
             $driver->update([
@@ -35,31 +35,42 @@ class DriverController extends Controller
         $lang = $request->lang ?? 'en';
 
         $messages = [
-            'en' => [
-                'registration_successful' => 'Driver registration successful.',
-                'registration_failed' => 'Registration failed.',
-                'mobile_exists' => 'Mobile number already exists.',
-            ],
-            'ar' => [
-                'registration_successful' => 'تم تسجيل السائق بنجاح.',
-                'registration_failed' => 'فشل التسجيل.',
-                'mobile_exists' => 'رقم الجوال موجود بالفعل.',
-            ],
-            'ur' => [
-                'registration_successful' => 'ڈرائیور کا اندراج کامیابی سے مکمل ہو گیا ہے۔',
-                'registration_failed' => 'اندراج ناکام ہو گیا۔',
-                'mobile_exists' => 'موبائل نمبر پہلے سے موجود ہے۔',
-            ],
-        ];
+        'en' => [
+            'registration_successful' => 'Driver registration successful.',
+            'registration_failed' => 'Registration failed.',
+            'mobile_exists_driver' => 'This mobile number is already registered as Driver.',
+            'mobile_exists_passenger' => 'This mobile number is already registered as Passenger. Cannot create Driver account with same number.',
+        ],
+        'ar' => [
+            'registration_successful' => 'تم تسجيل السائق بنجاح.',
+            'registration_failed' => 'فشل التسجيل.',
+            'mobile_exists_driver' => 'رقم الجوال هذا مسجل بالفعل كسائق.',
+            'mobile_exists_passenger' => 'رقم الجوال هذا مسجل بالفعل كراكب. لا يمكن إنشاء حساب سائق بنفس الرقم.',
+        ],
+        'ur' => [
+            'registration_successful' => 'ڈرائیور کا اندراج کامیابی سے مکمل ہو گیا ہے۔',
+            'registration_failed' => 'اندراج ناکام ہو گیا۔',
+            'mobile_exists_driver' => 'یہ موبائل نمبر پہلے سے ڈرائیور کے طور پر رجسٹرڈ ہے۔',
+            'mobile_exists_passenger' => 'یہ موبائل نمبر پہلے سے مسافر کے طور پر رجسٹرڈ ہے۔ اسی نمبر سے ڈرائیور اکاؤنٹ نہیں بنایا جا سکتا۔',
+        ],
+    ];
 
-        $user = AppUser::where('mobile', $request->mobile)->where('user_type', 1)->first();
+    // Check if mobile exists as any user type (excluding guest)
+    $existingUser = AppUser::where('mobile', $request->mobile)
+        ->where('name', '!=', 'guest')
+        ->first();
 
-        if ($user) {
-            return response()->json([
-                'success' => false,
-                'message' => $messages[$lang]['mobile_exists'],
-            ], 404);
-        }
+    if ($existingUser) {
+        $errorMessage = $existingUser->user_type == 'Driver' ? 
+            $messages[$lang]['mobile_exists_driver'] : 
+            $messages[$lang]['mobile_exists_passenger'];
+        
+        return response()->json([
+            'success' => false,
+            'message' => $errorMessage,
+            'user_type' => $existingUser->user_type,
+        ], 400);
+    }
 
         DB::beginTransaction();
 
@@ -86,7 +97,7 @@ class DriverController extends Controller
                 'name' => $request->name,
                 'mobile' => $request->mobile,
                 'id_number' => $request->id_number,
-                'user_type' => 1,
+                'user_type' => 'Driver',
                 'id_image' => $idImagePath,
                 'license_image_url' => $licenseImagePath,
                 'driver_image' => $driverImagePath,

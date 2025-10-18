@@ -22,17 +22,44 @@ use Illuminate\Support\Facades\Route;
 
 
 
-Route::group(['prefix' => 'auth'], function ($router) {
-    Route::post('/driver/login', [AuthAppController::class, 'login']);
-    Route::post('/driver/verify-otp', [AuthAppController::class, 'verifyOtp']);
-    Route::post('/driver/logout', [AuthAppController::class, 'logout']);
-    Route::post('/driver/resendOTP', [AuthAppController::class, 'resendOTP']);
-    Route::delete('/driver/delete-account', [AuthAppController::class, 'deleteAccount']);
-    Route::get('/driver/profile/{id}', [AuthAppController::class, 'profile']);
-    Route::post('/create/new/user', [AuthAppController::class, 'creatNewUser']);
+// Passenger Routes
+Route::group(['prefix' => 'passenger'], function ($router) {
+    Route::post('/register', [AuthAppController::class, 'creatNewUser']);
+    Route::post('/login', [AuthAppController::class, 'passengerLogin']);
+    Route::post('/verify-otp', [AuthAppController::class, 'passengerVerifyOtp']);
+    Route::post('/logout', [AuthAppController::class, 'passengerLogout']);
+    Route::post('/resend-otp', [AuthAppController::class, 'passengerResendOTP']);
+    Route::delete('/delete-account', [AuthAppController::class, 'passengerDeleteAccount']);
+    Route::get('/profile/{id}', [AuthAppController::class, 'passengerProfile']);
+});
+
+// Driver Routes  
+Route::group(['prefix' => 'driver'], function ($router) {
+    Route::post('/register', [DriverController::class, 'store']);
+    Route::post('/login', [AuthAppController::class, 'driverLogin']);
+    Route::post('/verify-otp', [AuthAppController::class, 'driverVerifyOtp']);
+    Route::post('/logout', [AuthAppController::class, 'driverLogout']);
+    Route::post('/resend-otp', [AuthAppController::class, 'driverResendOTP']);
+    Route::delete('/delete-account', [AuthAppController::class, 'driverDeleteAccount']);
+    Route::get('/profile/{id}', [AuthAppController::class, 'driverProfile']);
+});
+
+// ✅ Common endpoints
 Route::delete('/user/delete/{id}', [AuthAppController::class, 'deleteUser']);
 
-});
+
+
+// Route::group(['prefix' => 'auth'], function ($router) {
+//     Route::post('/driver/login', [AuthAppController::class, 'login']);
+//     Route::post('/driver/verify-otp', [AuthAppController::class, 'verifyOtp']);
+//     Route::post('/driver/logout', [AuthAppController::class, 'logout']);
+//     Route::post('/driver/resendOTP', [AuthAppController::class, 'resendOTP']);
+//     Route::delete('/driver/delete-account', [AuthAppController::class, 'deleteAccount']);
+//     Route::get('/driver/profile/{id}', [AuthAppController::class, 'profile']);
+//     Route::post('/create/new/user', [AuthAppController::class, 'creatNewUser']);
+// Route::delete('/user/delete/{id}', [AuthAppController::class, 'deleteUser']);
+
+// });
 // Route::group(['prefix' => 'auth'], function ($router) {
 //     Route::post('/register', [AuthController::class, 'register']);
 //     Route::post('/login', [AuthController::class, 'login']);
@@ -53,9 +80,13 @@ Route::group(['prefix' => 'category'], function ($router) {
     Route::get('/subCategory/vendors/discount/products/{vendor}', [SubCategoryController::class, 'showDiscountProducts']);
     Route::get('/subCategory/vendors/new/products/{vendor}', [SubCategoryController::class, 'showNewProducts']);
 });
-Route::group(['prefix' => 'drivers'], function ($router) {
-    Route::post('/', [DriverController::class, 'store']);
-});
+
+
+// Route::group(['prefix' => 'drivers'], function ($router) {
+//     Route::post('/', [DriverController::class, 'store']);
+// });
+
+
 Route::post('/employees/toggle-all-archive', [EmployeeController::class, 'toggleAllArchive']);
 Route::group(['prefix' => 'passengers'], function ($router) {
     Route::post('/', [PassengerController::class, 'create']);

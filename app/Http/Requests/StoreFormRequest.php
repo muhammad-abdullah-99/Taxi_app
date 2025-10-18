@@ -12,7 +12,7 @@ class StoreFormRequest extends FormRequest
 {
     public function rules()
     {
-        $driver =AppUser::where('mobile', $this->input('mobile'))->where('user_type', 1)->where('name','guest')->first();
+        $driver =AppUser::where('mobile', $this->input('mobile'))->where('user_type', 'Driver')->where('name','guest')->first();
         if (!$driver):
         return [
             'name' => 'required|string|max:255',
@@ -21,7 +21,7 @@ class StoreFormRequest extends FormRequest
                 'string',
                 'max:15',
                 Rule::unique('app_users', 'mobile')->where(function ($query) {
-                    return $query->where('user_type', 1);
+                    return $query->where('user_type', 'Driver');
                 }),
             ],
             'id_number' => 'required|string|max:50',

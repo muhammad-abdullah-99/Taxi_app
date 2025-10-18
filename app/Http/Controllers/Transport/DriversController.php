@@ -15,7 +15,7 @@ class DriversController extends Controller
     public function showAllDrivers()
     {
             $companies = Company::with(['appUser' => function ($query) {
-        $query->where('user_type', 1)
+        $query->where('user_type', 'Driver')
             ->where('status', 1)
             ->where('name', '!=', 'guest')
             ->with('vehicle');
@@ -25,14 +25,14 @@ class DriversController extends Controller
     }
     // public function showCurrentDrivers()
     // {
-    //     $drivers = AppUser::where('user_type', 1)->where('status', 1)
+    //     $drivers = AppUser::where('user_type', 'Driver')->where('status', 1)
     //         ->where('name', '!=', 'guest')
     //         ->with(['company', 'vehicle'])->get();
     //     return view('/admin/transport/drivers/currentDrivers', compact('drivers'));
     // }
   public function showCurrentDrivers($companyType = null)
 {
-    $query = AppUser::where('user_type', 1)
+    $query = AppUser::where('user_type', 'Driver')
         ->where('status', 1)
         ->where('name', '!=', 'guest')
         ->with(['company', 'vehicle']);
@@ -51,12 +51,12 @@ class DriversController extends Controller
 
     public function showWaitingDrivers()
     {
-        $drivers = AppUser::where('user_type', 1)->where('status', null)->with(['company', 'vehicle'])->get();
+        $drivers = AppUser::where('user_type', 'Driver')->where('status', null)->with(['company', 'vehicle'])->get();
         return view('/admin/transport/drivers/waitingDrivers', compact('drivers'));
     }
     public function showarchiveDrivers()
     {
-        $drivers = AppUser::where('user_type', 1)->where('status', 2)->with(['company', 'vehicle'])->get();
+        $drivers = AppUser::where('user_type', 'Driver')->where('status', 2)->with(['company', 'vehicle'])->get();
         return view('/admin/transport/drivers/archiveDrivers', compact('drivers'));
     }
 

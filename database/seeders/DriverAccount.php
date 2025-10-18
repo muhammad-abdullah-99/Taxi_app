@@ -23,7 +23,7 @@ class DriverAccount extends Seeder
             'name' => 'guest',
             'mobile' => 'guest',
             'id_number' => 'guest',
-            'user_type' => 1,
+            'user_type' => 'Driver',
             'status' => 1,
         ];
     }
@@ -34,7 +34,7 @@ class DriverAccount extends Seeder
             'name' => 'islam',
             'mobile' => '0512345678',
             'id_number' => '12345678', // أو أي قيمة مناسبة
-            'user_type' => 1,
+            'user_type' => 'Driver',
             'status' => 1,
         ];
     }
@@ -44,7 +44,7 @@ class DriverAccount extends Seeder
             'name' => 'ahmed',
             'mobile' => '0512345677',
             'id_number' => '12345677', // أو أي قيمة مناسبة
-            'user_type' => 1,
+            'user_type' => 'Driver',
             'status' => 0,
         ];
     }

@@ -49,21 +49,21 @@ class WalletController extends Controller
     public function index()
     {
         $wallets = Wallet::whereHas('user', function ($query) {
-            $query->where('user_type', 1)
+            $query->where('user_type', 'Driver')
                 ->where('status', 1)
                 ->where('name', '!=', 'guest');
         })->get();
-        $drivers = AppUser::where('user_type', 1)->where('status', 1)->where('name', '!=', 'guest')->get();
+        $drivers = AppUser::where('user_type', 'Driver')->where('status', 1)->where('name', '!=', 'guest')->get();
         return view('admin.transport.wallet.wallet', compact(['wallets', 'drivers']));
     }
     public function walletClient()
     {
         $wallets = Wallet::whereHas('user', function ($query) {
-            $query->where('user_type', 2)
+            $query->where('user_type', 'Passenger')
                 ->where('status', 1)
                 ->where('name', '!=', 'guest');
         })->get();
-        $drivers = AppUser::where('user_type', 2)->where('status', 1)->where('name', '!=', 'guest')->get();
+        $drivers = AppUser::where('user_type', 'Passenger')->where('status', 1)->where('name', '!=', 'guest')->get();
         return view('admin.transport.wallet.client', compact(['wallets', 'drivers']));
     }
 

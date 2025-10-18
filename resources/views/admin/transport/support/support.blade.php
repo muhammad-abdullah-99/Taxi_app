@@ -15,7 +15,7 @@
 
 <div class="row mb-30 d-flex justify-content-center">
 
-    <a href="{{ route('support.tickets.byUserType', ['user_type' => 1]) }}" class="col-md-3 mb-3 text-dark text-decoration-none d-flex justify-content-center">
+    <a href="{{ route('support.tickets.byUserType', ['user_type' => 'Driver']) }}" class="col-md-3 mb-3 text-dark text-decoration-none d-flex justify-content-center">
         <div class="card text-center d-flex align-items-center justify-content-center shadow-lg"
              style="background-color: #2c3e50; border-radius: 20px; width: 220px; height: 160px;">
             <div class="card-body d-flex flex-column align-items-center justify-content-center p-2">
@@ -25,7 +25,7 @@
         </div>
     </a>
 
-    <a href="{{ route('support.tickets.byUserType', ['user_type' => 2]) }}" class="col-md-3 mb-3 text-dark text-decoration-none d-flex justify-content-center">
+    <a href="{{ route('support.tickets.byUserType', ['user_type' => 'Passenger']) }}" class="col-md-3 mb-3 text-dark text-decoration-none d-flex justify-content-center">
         <div class="card text-center d-flex align-items-center justify-content-center shadow-lg"
              style="background-color: #2c3e50; border-radius: 20px; width: 220px; height: 160px;">
             <div class="card-body d-flex flex-column align-items-center justify-content-center p-2">

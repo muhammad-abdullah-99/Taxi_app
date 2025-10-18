@@ -118,11 +118,11 @@
                                 <td>{{ $loop->iteration }}</td>
                                 <td>{{ $item->city_one }}</td>
                                 <td>{{ $item->city_two }}</td>
-                                <td>{{ number_format($item->amount, 2) }}</td>
+                                <td>{{ number_format((float)$item->amount, 2) }}</td>
                                 <td>{{ $item->passengers }}</td>
                                 <td>{{ $item->car_type }}</td>
                                 <td>{{ $item->code }}</td>
-                                <td>{{ number_format($item->office_commission, 2) }}</td>
+                                <td>{{ number_format((float)$item->office_commission, 2) }}</td>
                                 <td>
                                     <!-- زر تعديل -->
                                     <button class="btn btn-info btn-sm" data-toggle="modal" data-target="#edit{{ $item->id }}">

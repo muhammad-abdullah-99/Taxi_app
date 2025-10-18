@@ -17,7 +17,7 @@ class TravelController extends Controller
     {
         $status = $request->get('status'); // مثلاً: انتظار، جارية، مكتملة
 
-        $query = Travel::with('appUser');
+        $query = Travel::with('appUser')->whereHas('appUser');
 
         if ($status) {
             $query->where('status', $status);
