@@ -1,0 +1,289 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Employee;
+use App\Models\EmployeeFile;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+
+class EmployeeController extends Controller
+{
+    public function showAllEmployees()
+    {
+        // عرض جميع الموظفين
+        return view('admin.employees.showAllEmployees');
+    }
+    public function toggleAllArchive()
+    {
+        $archivedIds = Employee::where('archive', 'archived')->pluck('id');
+
+        Employee::whereIn('id', $archivedIds)->update(['archive' => null]);
+
+        Employee::whereNotIn('id', $archivedIds)->update(['archive' => 'archivee']);
+
+        return response()->json([
+            'message' => 'تم أرشفة الموظف بنجاح'
+        ]);
+    }
+
+
+
+    // public function index()
+    // {
+    //     // عرض الموظفين الغير مؤرشفين
+    //     $employees = Employee::whereNull('archive')->get();
+    //     return view('admin.employees.allEmployees', compact('employees'));
+    // }
+    public function index(Request $request)
+    {
+        // Get list of companies with their employee count (excluding archived)
+        $companies = Employee::whereNull('archive')
+            ->select('company', \DB::raw('count(*) as count'))
+            ->groupBy('company')
+            ->get();
+
+        // Get all employees not archived (with optional filter)
+        if ($request->has('company') && $request->company != '') {
+            $employees = Employee::whereNull('archive')
+                ->where('company', $request->company)
+                ->get();
+        } else {
+            $employees = Employee::whereNull('archive')->get();
+        }
+
+        return view('admin.employees.allEmployees', compact('employees', 'companies'));
+    }
+
+
+    public function archiveEmployee()
+    {
+        // عرض الموظفين المؤرشفين
+        $employees = Employee::where('archive', 'archived')->get();
+        return view('admin.employees.archiveEmployee', compact('employees'));
+    }
+
+    public function store(Request $request)
+    {
+        // تحقق من البيانات المدخلة
+        $validatedData = $request->validate([
+            'name' => 'required|string|max:255',
+            'nationality' => 'required|string|max:255',
+            'identity_number' => 'required|unique:employees',
+            'joining_date' => 'required|date',
+            'job_title' => 'required|string|max:255',
+            'archive' => 'nullable',
+            'phone' => 'nullable',
+            'company' => 'nullable',
+            'files.*' => 'nullable|file|mimes:jpg,png,pdf,docx,zip', // تحديد نوع الملفات المسموح بها
+        ], [
+            'name.required' => 'حقل الاسم مطلوب.',
+            'name.string' => 'حقل الاسم يجب أن يكون نصًا.',
+            'name.max' => 'حقل الاسم يجب ألا يتجاوز 255 حرفًا.',
+            'nationality.required' => 'حقل الجنسية مطلوب.',
+            'nationality.string' => 'حقل الجنسية يجب أن يكون نصًا.',
+            'nationality.max' => 'حقل الجنسية يجب ألا يتجاوز 255 حرفًا.',
+            'identity_number.required' => 'رقم الهوية مطلوب.',
+            'identity_number.unique' => 'رقم الهوية مسجل مسبقًا.',
+            'joining_date.required' => 'تاريخ الالتحاق مطلوب.',
+            'joining_date.date' => 'تاريخ الالتحاق يجب أن يكون تاريخًا صحيحًا.',
+            'job_title.required' => 'المسمى الوظيفي مطلوب.',
+            'job_title.string' => 'المسمى الوظيفي يجب أن يكون نصًا.',
+            'job_title.max' => 'المسمى الوظيفي يجب ألا يتجاوز 255 حرفًا.',
+            'files.*.file' => 'الملف يجب أن يكون من نوع ملف.',
+            'files.*.mimes' => 'الملف يجب أن يكون من نوع jpg, png, pdf, docx, أو zip.',
+        ]);
+
+        // حفظ بيانات الموظف
+        $employee = Employee::create([
+            'name' => $validatedData['name'],
+            'nationality' => $validatedData['nationality'],
+            'identity_number' => $validatedData['identity_number'],
+            'joining_date' => $validatedData['joining_date'],
+            'job_title' => $validatedData['job_title'],
+            'archive' => $validatedData['archive'] ?? null,
+            'company' => $validatedData['company'] ?? null,
+            'phone' => $validatedData['phone'] ?? null,
+            'user_name' => auth()->user()->name,
+
+        ]);
+
+        // حفظ الملفات الخاصة بالموظف
+        if ($request->hasFile('files')) {
+            foreach ($request->file('files') as $file) {
+                $fileName = time() . '_' . $file->getClientOriginalName(); // اسم فريد للملف
+                $destinationPath = public_path('storage/employee_files'); // مسار الحفظ داخل public
+
+                // نقل الملف للمسار المحدد
+                $file->move($destinationPath, $fileName);
+
+                // حفظ المسار في قاعدة البيانات
+                EmployeeFile::create([
+                    'file' => 'employee_files/' . $fileName, // حفظ المسار النسبي فقط
+                    'employee_id' => $employee->id,
+                ]);
+            }
+        }
+
+        toastr()->success('تم حفظ بيانات الموظف بنجاح');
+        return back();
+    }
+
+    public function update(Request $request, Employee $employee)
+    {
+        // تحقق من البيانات المدخلة
+        $validatedData = $request->validate([
+            'name' => 'required|string|max:255',
+            'nationality' => 'required|string|max:255',
+            'identity_number' => [
+                'required',
+                Rule::unique('employees')->ignore($employee->id),
+            ],
+            'joining_date' => 'required|date',
+            'job_title' => 'required|string|max:255',
+            'archive' => 'nullable',
+            'company' => 'nullable',
+            'phone' => 'nullable',
+
+            'files.*' => 'nullable|file|mimes:jpg,png,pdf,docx,zip', // تحديد نوع الملفات المسموح بها
+        ], [
+            'name.required' => 'حقل الاسم مطلوب.',
+            'name.string' => 'حقل الاسم يجب أن يكون نصًا.',
+            'name.max' => 'حقل الاسم يجب ألا يتجاوز 255 حرفًا.',
+            'nationality.required' => 'حقل الجنسية مطلوب.',
+            'nationality.string' => 'حقل الجنسية يجب أن يكون نصًا.',
+            'nationality.max' => 'حقل الجنسية يجب ألا يتجاوز 255 حرفًا.',
+            'identity_number.required' => 'رقم الهوية مطلوب.',
+            'identity_number.unique' => 'رقم الهوية مسجل مسبقًا.',
+            'joining_date.required' => 'تاريخ الالتحاق مطلوب.',
+            'joining_date.date' => 'تاريخ الالتحاق يجب أن يكون تاريخًا صحيحًا.',
+            'job_title.required' => 'المسمى الوظيفي مطلوب.',
+            'job_title.string' => 'المسمى الوظيفي يجب أن يكون نصًا.',
+            'job_title.max' => 'المسمى الوظيفي يجب ألا يتجاوز 255 حرفًا.',
+            'files.*.file' => 'الملف يجب أن يكون من نوع ملف.',
+            'files.*.mimes' => 'الملف يجب أن يكون من نوع jpg, png, pdf, docx, أو zip.',
+        ]);
+
+        // تحديث بيانات الموظف
+        $employee->update($validatedData);
+
+        // حفظ الملفات الجديدة
+        if ($request->hasFile('files')) {
+            foreach ($request->file('files') as $file) {
+                $fileName = time() . '_' . $file->getClientOriginalName(); // اسم فريد للملف
+                $destinationPath = public_path('storage/employee_files'); // مسار الحفظ داخل public
+
+                // نقل الملف للمسار المحدد
+                $file->move($destinationPath, $fileName);
+
+                // حفظ المسار في قاعدة البيانات
+                EmployeeFile::create([
+                    'file' => 'employee_files/' . $fileName, // حفظ المسار النسبي فقط
+                    'employee_id' => $employee->id,
+                ]);
+            }
+        }
+
+        toastr()->success('تم تعديل بيانات الموظف بنجاح');
+        return back();
+    }
+
+    public function archive($id)
+    {
+        // أرشفة الموظف
+        $employee = Employee::findOrFail($id);
+        $employee->archive = 'archived';
+        $employee->save();
+
+        toastr()->success('تم أرشفة الموظف بنجاح');
+        return redirect()->back();
+    }
+
+    public function unarchiveEmployee($id)
+    {
+        // إلغاء أرشفة الموظف
+        $employee = Employee::findOrFail($id);
+        $employee->archive = null;
+        $employee->save();
+
+        toastr()->success('تم إلغاء أرشفة الموظف بنجاح');
+        return redirect()->back();
+    }
+
+
+    ////
+    public function showAllEmployeefiles($id)
+    {
+        $files = EmployeeFile::where('employee_id', $id)->get();
+        $employee = Employee::findOrFail($id);
+        return view('/admin/employees/employeeFiles', compact('files', 'employee'));
+    }
+    //
+    public function deleteEmployeeFile($id)
+    {
+        $file = EmployeeFile::findOrFail($id);
+        $filePath = public_path('storage/' . $file->file);
+
+        if (file_exists($filePath)) {
+            unlink($filePath); // Delete file from storage
+        }
+
+        $file->delete(); // Delete file record from database
+        toastr()->success('تم حذف الملف بنجاح');
+
+        return redirect()->back();
+    }
+
+    //
+
+    public function storeEmployeeFile(Request $request, $employee)
+    {
+        $request->validate([
+            'files' => 'required|array',
+            'files.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx|max:10240', // Validate file types and size
+        ]);
+
+        $uploadedFiles = [];
+        if ($request->hasFile('files')) {
+            foreach ($request->file('files') as $file) {
+                $fileName = time() . '_' . $file->getClientOriginalName(); // Unique file name
+                $destinationPath = public_path('storage/employee_files'); // Path for saving the file
+
+                // Move the file to the destination
+                $file->move($destinationPath, $fileName);
+
+                // Save file path in database
+                EmployeeFile::create([
+                    'file' =>  $fileName, // Store relative path
+                    'employee_id' => $employee,
+                ]);
+
+                $uploadedFiles[] = asset('storage/employee_files/' . $fileName); // Generate direct URL
+            }
+        }
+        toastr()->success('تم اضافة الملفات  بنجاح');
+
+        return redirect()->back();
+    }
+    public function updateExpiry(Request $request, $id)
+    {
+        $request->validate([
+            'field' => 'required|in:moqem_expire_at,mokhalsa_expire_at,cart_expire_at',
+            'value' => 'required|date',
+        ]);
+
+        $employee = Employee::findOrFail($id);
+        $employee->{$request->field} = $request->value;
+        $employee->save();
+
+        return back()->with('success', 'تم تحديث التاريخ بنجاح');
+    }
+
+    public function report(Request $request)
+{
+    $employees = Employee::where('company', $request->company)->get();
+    $company=$request->company;
+    return view('admin.employees.report', compact('employees', 'company'));
+}
+
+}
