@@ -15,16 +15,22 @@ class AuthAppController extends Controller
 {
     private function getLanguage($request)
     {
-        // Priority: Accept-Language header > lang parameter > default English
-        return $request->header('Accept-Language', 
-            $request->input('lang', 'en'));
+    // Priority: Accept-Language header > lang parameter > default English
+    $lang = $request->header('Accept-Language', $request->input('lang', 'en'));
+    
+    // ✅ Support for Urdu language codes
+    if (in_array($lang, ['ur', 'ur-PK', 'urdu', 'urd'])) {
+        return 'ur';
+    }
+    
+    return in_array($lang, ['en', 'ar']) ? $lang : 'en';
     }
 
 private function getAppMessages($lang)
 {
     return [
         'en' => [
-            // ... existing messages ...
+            // ... existing English messages ...
             'invalid_input' => 'Invalid input.',
             'user_not_found' => 'User not found.',
             'driver_not_found' => 'Driver not found.',
@@ -41,7 +47,7 @@ private function getAppMessages($lang)
             'delete_error' => 'An error occurred while deleting the account.',
             'unauthorized_access' => 'Unauthorized access.',
             
-            // ✅ NEW - Additional messages
+            // Additional messages
             'otp_expired' => 'Verification code has expired. Please request a new one.',
             'otp_resent' => 'Verification code has been resent successfully.',
             'otp_send_failed' => 'Failed to send verification code. Please try again.',
@@ -49,7 +55,7 @@ private function getAppMessages($lang)
             'server_error' => 'Something went wrong. Please try again later.',
         ],
         'ar' => [
-            // ... existing messages ...
+            // ... existing Arabic messages ...
             'invalid_input' => 'إدخال غير صالح.',
             'user_not_found' => 'لم يتم العثور على مستخدم.',
             'driver_not_found' => 'لم يتم العثور على سائق.',
@@ -66,12 +72,36 @@ private function getAppMessages($lang)
             'delete_error' => 'حدث خطأ أثناء حذف الحساب.',
             'unauthorized_access' => 'وصول غير مصرح به.',
             
-            // ✅ NEW - Additional messages
+            // Additional messages
             'otp_expired' => 'انتهت صلاحية رمز التحقق. يرجى طلب رمز جديد.',
             'otp_resent' => 'تم إعادة إرسال رمز التحقق بنجاح.',
             'otp_send_failed' => 'فشل إرسال رمز التحقق. يرجى المحاولة مرة أخرى.',
             'profile_not_found' => 'لم يتم العثور على معلومات الملف الشخصي.',
             'server_error' => 'حدث خطأ ما. يرجى المحاولة لاحقاً.',
+        ],
+        'ur' => [ // ✅ YAHAN URDU MESSAGES ADD KAREIN
+            'invalid_input' => 'غلط ان پٹ۔',
+            'user_not_found' => 'صارف نہیں ملا۔',
+            'driver_not_found' => 'ڈرائیور نہیں ملا۔',
+            'passenger_not_found' => 'مسافر نہیں ملا۔',
+            'wrong_account_type' => 'یہ موبائل نمبر {type} کے طور پر رجسٹرڈ ہے۔ براہ کرم صحیح نمبر استعمال کریں۔',
+            'account_pending' => 'براہ کرم انتظار کریں جب تک آپ کے اکاؤنٹ کی منظوری نہ ہو جائے۔',
+            'otp_sent' => 'OTP آپ کے موبائل نمبر پر بھیج دیا گیا ہے۔',
+            'invalid_otp' => 'غلط یا میعاد ختم ہونے والا OTP۔',
+            'login_success' => 'لاگ ان کامیاب۔',
+            'logout_success' => 'لاگ آؤٹ کامیاب۔',
+            'mobile_exists' => 'یہ موبائل نمبر پہلے ہی {type} کے طور پر رجسٹرڈ ہے۔ براہ کرم لاگ ان کریں یا کوئی دوسرا نمبر استعمال کریں۔',
+            'account_created' => 'اکاؤنٹ کامیابی سے بن گیا۔',
+            'delete_success' => 'اکاؤنٹ کامیابی سے حذف ہو گیا۔',
+            'delete_error' => 'اکاؤنٹ کو حذف کرنے میں ایک خرابی پیش آئی۔',
+            'unauthorized_access' => 'غیر مجاز رسائی۔',
+            
+            // Additional messages
+            'otp_expired' => 'تصدیقی کوڈ کی میعاد ختم ہو گئی ہے۔ براہ کرم نیا کوڈ طلب کریں۔',
+            'otp_resent' => 'تصدیقی کوڈ دوبارہ کامیابی سے بھیج دیا گیا ہے۔',
+            'otp_send_failed' => 'تصدیقی کوڈ بھیجنے میں ناکامی۔ براہ کرم دوبارہ کوشش کریں۔',
+            'profile_not_found' => 'پروفائل کی معلومات نہیں ملیں۔',
+            'server_error' => 'کچھ غلط ہو گیا۔ براہ کرم بعد میں دوبارہ کوشش کریں۔',
         ]
     ][$lang] ?? [];
 }
@@ -101,7 +131,8 @@ public function login(Request $request)
 
     // ✅ SPECIAL RULE: Agar Passenger hai aur Driver app se login kar raha hai - BLOCK
     if ($anyUser && $anyUser->user_type == 'Passenger' && $request->has('user_type') && $request->user_type == 'Driver') {
-        $accountType = $lang == 'ar' ? 'راكب' : 'Passenger';
+       $accountType = $lang == 'ar' ? 'راكب' : 
+                     ($lang == 'ur' ? 'مسافر' : 'Passenger');
         $errorMessage = str_replace('{type}', $accountType, $messages['wrong_account_type']);
         
         return response()->json([
@@ -115,6 +146,7 @@ public function login(Request $request)
     $user = AppUser::where('mobile', $request->mobile)
         ->where('name', '!=', 'guest')
         ->with(['company', 'vehicle'])
+        ->select('*') // ✅ Ensure address field is included
         ->first();
 
     // ✅ Agar user nahi mila toh guest try karo
@@ -241,11 +273,13 @@ public function verifyOtp(Request $request)
             ], 400);
         }
 
-        if ($user->status == 0) {
-            return response()->json([
-                'success' => false,
-                'message' => $messages['account_pending'],
-            ], 400);
+        if ($user->user_type == 'Driver' && $request->has('user_type') && $request->user_type == 'Driver') {
+            if ($user->status == 0 || $user->status === null) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $messages['account_pending'],
+                ], 400);
+            }
         }
 
         // ✅ NEW: Check if OTP expired
@@ -449,7 +483,11 @@ public function deleteAccount(Request $request)
 
     public function profile($id)
     {
-        $driver = AppUser::where('id', $id)->with(['company', 'vehicle'])->first();
+        $driver = AppUser::where('id', $id)
+        ->with(['company', 'vehicle'])
+        ->select('*') // ✅ Simple change
+        ->first();
+        
         return response()->json([
             'driver' => $driver,
             'message' => 'المعلومات الشخصية',
@@ -469,8 +507,10 @@ public function creatNewUser(request $request)
 
         if ($existingUser) {
             $userType = $existingUser->user_type == 'Driver' ? 
-                ($lang == 'ar' ? 'سائق' : 'Driver') : 
-                ($lang == 'ar' ? 'راكب' : 'Passenger');
+                ($lang == 'ar' ? 'سائق' : 
+                 ($lang == 'ur' ? 'ڈرائیور' : 'Driver')) : // ✅ URDU ADDED
+                ($lang == 'ar' ? 'راكب' : 
+                 ($lang == 'ur' ? 'مسافر' : 'Passenger')); // ✅ URDU ADDED
             
             return response()->json([
                 'success' => false,
@@ -602,10 +642,7 @@ public function passengerProfile($id)
 
     try {
         $passenger = AppUser::where('id', $id)
-            ->select([
-                'id', 'name', 'email', 'image', 'mobile', 'user_type',
-                'id_image', 'id_number', 'address', 'created_at'
-            ])
+            ->select('*') // ✅ Simple change - address automatically included
             ->first();
             
         if (!$passenger) {
@@ -671,6 +708,7 @@ public function driverProfile($id)
         $driver = AppUser::where('id', $id)
             ->where('user_type', 'Driver')
             ->with(['company', 'vehicle'])
+            ->select('*') // ✅ Simple change - address automatically included
             ->first();
             
         if (!$driver) {

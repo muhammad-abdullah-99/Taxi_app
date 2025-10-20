@@ -831,6 +831,12 @@ public function upgradeToDriver(Request $request)
             'already_driver' => 'أنت مسجل بالفعل كسائق.',
             'user_not_found' => 'لم يتم العثور على المستخدم.',
         ],
+        'ur' => [
+            'upgrade_successful' => 'ڈرائیور میں کامیابی سے اپ گریڈ ہو گئے۔',
+            'upgrade_failed' => 'اپ گریڈ ناکام ہو گیا۔',
+            'already_driver' => 'آپ پہلے سے ڈرائیور کے طور پر رجسٹرڈ ہیں۔',
+            'user_not_found' => 'صارف نہیں ملا۔',
+        ],        
     ];
 
     // Validation
@@ -855,7 +861,7 @@ public function upgradeToDriver(Request $request)
     if ($validator->fails()) {
         return response()->json([
             'success' => false,
-            'message' => $messages[$lang]['upgrade_failed'],
+            'message' => $messages[$lang]['upgrade_failed'] ?? $messages['en']['upgrade_failed'],
             'errors' => $validator->errors(),
         ], 422);
     }
@@ -866,7 +872,7 @@ public function upgradeToDriver(Request $request)
     if (!$user) {
         return response()->json([
             'success' => false,
-            'message' => $messages[$lang]['user_not_found'],
+            'message' => $messages[$lang]['user_not_found'] ?? $messages['en']['user_not_found'],
         ], 404);
     }
 
@@ -874,7 +880,7 @@ public function upgradeToDriver(Request $request)
     if ($user->user_type == 'Driver') {
         return response()->json([
             'success' => false,
-            'message' => $messages[$lang]['already_driver'],
+            'message' => $messages[$lang]['already_driver'] ?? $messages['en']['already_driver'],
         ], 400);
     }
 
@@ -932,8 +938,9 @@ public function upgradeToDriver(Request $request)
 
         // Send SMS
         $smsMessages = [
-            'en' => "Your upgrade request to Driver (ID: {$user->id_number}) has been received.\nWe will get back to you soon.\n\nROSE - Bus Guidance App\nWhatsApp: 0551796056",
-            'ar' => "تم استلام طلب الترقية إلى سائق (رقم: {$user->id_number}).\nسيتم الرد عليك قريباً.\n\nتطبيق روز\nواتساب: 0551796056",
+            'en' => "Your upgrade request to Driver (ID: {$user->id_number}) has been received.\nWe will get back to you soon.",
+            'ar' => "تم استلام طلب الترقية إلى سائق (رقم: {$user->id_number}).\nسيتم الرد عليك قريباً.",
+            'ur' => "آپ کی ڈرائیور اپ گریڈ درخواست (شناخت: {$user->id_number}) موصول ہو گئی ہے۔\nہم جلد ہی آپ سے رابطہ کریں گے۔",
         ];
 
         try {
@@ -953,7 +960,7 @@ public function upgradeToDriver(Request $request)
 
         return response()->json([
             'success' => true,
-            'message' => $messages[$lang]['upgrade_successful'],
+            'message' => $messages[$lang]['upgrade_successful'] ?? $messages['en']['upgrade_successful'],
             'data' => [
                 'user' => $user->fresh(['company', 'vehicle']),
                 'vehicle' => $vehicle,
@@ -966,7 +973,7 @@ public function upgradeToDriver(Request $request)
         Log::error('Upgrade Error: ' . $e->getMessage());
         return response()->json([
             'success' => false,
-            'message' => $messages[$lang]['upgrade_failed'],
+            'message' => $messages[$lang]['upgrade_failed'] ?? $messages['en']['upgrade_failed'],
             'error' => config('app.debug') ? $e->getMessage() : null,
         ], 500);
     }
