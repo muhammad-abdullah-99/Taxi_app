@@ -43,9 +43,9 @@
                                     <td>{{ $ticket->appUser->name ?? '-' }}</td>
                                     <td>{{ $ticket->appUser->mobile ?? '-' }}</td>
                                     <td>
-                                        @if($ticket->appUser->user_type == 1)
+                                        @if($ticket->appUser->user_type == 'Driver')
                                             سائق
-                                        @elseif($ticket->appUser->user_type == 2)
+                                        @elseif($ticket->appUser->user_type == 'Passenger')
                                             عميل
                                         @else
                                             -

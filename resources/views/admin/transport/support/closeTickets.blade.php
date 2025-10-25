@@ -18,6 +18,12 @@
     </div>
 @endif
 
+@if (session('error'))
+    <div class="alert alert-danger text-right">
+        {{ session('error') }}
+    </div>
+@endif
+
 <div class="row mt-4">
     <div class="col-md-12">
         <div class="card card-statistics">
@@ -32,8 +38,9 @@
                                 <th>نوع المستخدم</th>
                                 <th>الرسالة</th>
                                 <th>الصورة</th>
-                                <th>اسم الموظف </th>
+                                <th>اسم الموظف</th>
                                 <th>تاريخ الاغلاق</th>
+                                <th>الإجراءات</th> <!-- Naya Column -->
                             </tr>
                         </thead>
                         <tbody>
@@ -43,9 +50,9 @@
                                     <td>{{ $ticket->appUser->name ?? '-' }}</td>
                                     <td>{{ $ticket->appUser->mobile ?? '-' }}</td>
                                     <td>
-                                        @if($ticket->appUser->user_type == 1)
+                                        @if($ticket->appUser->user_type == 'Driver')
                                             سائق
-                                        @elseif($ticket->appUser->user_type == 2)
+                                        @elseif($ticket->appUser->user_type == 'Passenger')
                                             عميل
                                         @else
                                             -
@@ -60,11 +67,20 @@
                                         @endif
                                     </td>
                                     <td>{{ $ticket->user->name ?? '-' }}</td>
-                                    <td>{{ $ticket->updated_at->format('  H:i - Y-m-d') }}</td>
+                                    <td>{{ $ticket->updated_at->format('H:i - Y-m-d') }}</td>
+                                    <td>
+                                        <!-- Reopen Button -->
+                                        <form action="{{ route('support.reopenTicket', $ticket->id) }}" method="POST" style="display: inline;">
+                                            @csrf
+                                            <button type="submit" class="btn btn-warning btn-sm" onclick="return confirm('هل تريد إعادة فتح هذه التذكرة؟')">
+                                                إعادة فتح
+                                            </button>
+                                        </form>
+                                    </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8">لا توجد تذاكر حالياً.</td>
+                                    <td colspan="9">لا توجد تذاكر حالياً.</td>
                                 </tr>
                             @endforelse
                         </tbody>

@@ -11,6 +11,10 @@ class Travel extends Model
 {
     use HasFactory;
     protected $guarded = [];
+
+    protected $casts = [
+        'round_trip' => 'boolean'
+    ];
     
     protected static function booted()
     {

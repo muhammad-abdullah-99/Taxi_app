@@ -5,9 +5,9 @@
 <div class="page-title">
     <div class="row">
         <div class="col-sm-6">
-@if ($user_type == 1)
+@if ($user_type == 'Driver')
     <h4 class="mb-0">تذاكر السائقين</h4>
-@elseif ($user_type == 2)
+@elseif ($user_type == 'Passenger')
     <h4 class="mb-0">تذاكر العملاء</h4>
 @endif       
  </div>
@@ -32,8 +32,8 @@
 
 
     {{-- تذاكر تحت الإجراء --}}
-        <a href="#" class="col-md-3 mb-3 text-dark text-decoration-none d-flex justify-content-center">
-    <!-- <a href="{{ route('processTickets', ['user_type' => $user_type]) }}" class="col-md-3 mb-3 text-dark text-decoration-none d-flex justify-content-center"> -->
+        {{-- <a href="#" class="col-md-3 mb-3 text-dark text-decoration-none d-flex justify-content-center"> --}}
+    <a href="{{ route('processTickets', ['user_type' => $user_type]) }}" class="col-md-3 mb-3 text-dark text-decoration-none d-flex justify-content-center">
         <div class="card text-center d-flex align-items-center justify-content-center shadow-lg"
             style="background-color: #2c3e50; border-radius: 20px; width: 220px; height: 160px;">
             <div class="card-body d-flex flex-column align-items-center justify-content-center p-2">
@@ -42,10 +42,11 @@
             </div>
         </div>
     </a>
+    
 
     {{-- تذاكر مغلقة --}}
-    <a href="#" class="col-md-3 mb-3 text-dark text-decoration-none d-flex justify-content-center">
-    <!-- <a href="{{ route('closeTickets', ['user_type' => $user_type]) }}" class="col-md-3 mb-3 text-dark text-decoration-none d-flex justify-content-center"> -->
+    {{-- <a href="#" class="col-md-3 mb-3 text-dark text-decoration-none d-flex justify-content-center"> --}}
+     <a href="{{ route('closeTickets', ['user_type' => $user_type]) }}" class="col-md-3 mb-3 text-dark text-decoration-none d-flex justify-content-center">
         <div class="card text-center d-flex align-items-center justify-content-center shadow-lg"
             style="background-color: #2c3e50; border-radius: 20px; width: 220px; height: 160px;">
             <div class="card-body d-flex flex-column align-items-center justify-content-center p-2">

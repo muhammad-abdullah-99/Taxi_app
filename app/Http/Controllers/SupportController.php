@@ -33,6 +33,7 @@ class SupportController extends Controller
             'app_user_id' => $app_user,
             'image' => $imagePath,
             'text' => $request->text,
+            'status' => 'Pending',
         ]);
 
         DB::commit();
@@ -52,6 +53,8 @@ class SupportController extends Controller
         ], 500);
     }
 }
+
+
 public function get($app_user)
 {
     try {
@@ -88,17 +91,21 @@ public function get($app_user)
 
 public function waitTickets($user_type)
 {
-    $tickets = Support::whereNull('status')->with('appUser')->whereHas('appUser', function ($query) use ($user_type) {
-        $query->where('user_type', $user_type);
-    })->get();
+        $tickets = Support::where('status', 'Pending')
+        ->with('appUser')
+        ->whereHas('appUser', function ($query) use ($user_type) {
+            $query->where('user_type', $user_type); // Direct string compare
+        })->get();
 
     return view('admin.transport.support.waitTickets', compact('tickets'));
 }
+
+
 public function updateStatusWaitTickets($ticketId)
 {
     try {
         $ticket = Support::findOrFail($ticketId);
-        $ticket->status = 1; // الحالة المستلمة مثلاً
+        $ticket->status = 'InProgress'; // الحالة المستلمة مثلاً
         $ticket->user_id = auth()->id(); // المستخدم اللي استلم التذكرة
         $ticket->save();
 
@@ -113,9 +120,11 @@ public function updateStatusWaitTickets($ticketId)
 
 public function processTickets($user_type)
 {
-    $tickets = Support::where('status', 1)->with('appUser')->whereHas('appUser', function ($query) use ($user_type) {
-        $query->where('user_type', $user_type);
-    })->get();
+    $tickets = Support::where('status',  'InProgress')
+        ->with('appUser')
+        ->whereHas('appUser', function ($query) use ($user_type) {
+            $query->where('user_type', $user_type); // Direct string compare
+        })->get();
 
     return view('admin.transport.support.processTickets', compact('tickets'));
 }
@@ -135,43 +144,88 @@ public function updateStatusCloseTickets($ticketId)
         return redirect()->back()->with('error', 'حدث خطأ أثناء تحديث حالة التذكرة.');
     }
 }
+
+//To Display Existing Close Tickets
 public function closeTickets($user_type)
 {
-    $tickets = Support::where('status', 2)->with('appUser')->whereHas('appUser', function ($query) use ($user_type) {
-        $query->where('user_type', $user_type);
-    })->get();
+    $tickets = Support::where('status', 'TicketClosed')
+        ->with('appUser')
+        ->whereHas('appUser', function ($query) use ($user_type) {
+            $query->where('user_type', $user_type); // Direct string compare
+        })->get();
 
     return view('admin.transport.support.closeTickets', compact('tickets'));
 }
 
-public function sendOtp(Request $request)
+
+//To Close The Tickets Directly
+public function closeTicketDirect($ticketId)
 {
-    $ticket = Support::findOrFail($request->ticket_id);
-    $otp = mt_rand(1000, 9999);
-    $ticket->otp = $otp;
-    $ticket->otp_expires_at = now()->addMinutes(10);
-    $ticket->save();
+    try {
+        $ticket = Support::findOrFail($ticketId);
+        $ticket->status = 'TicketClosed';
+        
+        // ✅ AGAR auth()->id() NULL HAI, TOH EXISTING user_id KO PRESERVE KARO
+        if (auth()->check() && auth()->id()) {
+            $ticket->user_id = auth()->id();
+        }
+        // Agar auth null hai, toh existing user_id ko change mat karo
+        // $ticket->user_id = $ticket->user_id (no change)
+        
+        $ticket->save();
 
-    // إرسال الرسالة (Taqnyat أو log للتجربة)
-    Log::info("OTP to {$ticket->user->phone}: $otp");
+        return redirect()->back()->with('success', 'تم إغلاق التذكرة بنجاح');
 
-    return response()->json(['success' => true]);
-}
-
-public function verifyOtp(Request $request)
-{
-    $ticket = Support::findOrFail($request->ticket_id);
-
-    if ($ticket->otp != $request->otp || now()->gt($ticket->otp_expires_at)) {
-        return response()->json(['success' => false, 'message' => 'رمز التحقق غير صالح أو منتهي']);
+    } catch (\Exception $e) {
+        Log::error('Close Ticket Error: ' . $e->getMessage());
+        return redirect()->back()->with('error', 'فشل في إغلاق التذكرة');
     }
-
-    $ticket->status = 2;
-    $ticket->user_id = auth()->id();
-    $ticket->save();
-
-    return response()->json(['success' => true]);
 }
+
+public function reopenTicket($ticketId)
+{
+    try {
+        $ticket = Support::findOrFail($ticketId);
+        $ticket->status = 'InProgress'; // Back to process status
+        $ticket->user_id = auth()->id();
+        $ticket->save();
+
+        return redirect()->back()->with('success', 'تم إعادة فتح التذكرة بنجاح');
+
+    } catch (\Exception $e) {
+        Log::error('Reopen Ticket Error: ' . $e->getMessage());
+        return redirect()->back()->with('error', 'فشل في إعادة فتح التذكرة');
+    }
+}
+
+// public function sendOtp(Request $request)
+// {
+//     $ticket = Support::findOrFail($request->ticket_id);
+//     $otp = mt_rand(1000, 9999);
+//     $ticket->otp = $otp;
+//     $ticket->otp_expires_at = now()->addMinutes(10);
+//     $ticket->save();
+
+//     // إرسال الرسالة (Taqnyat أو log للتجربة)
+//     Log::info("OTP to {$ticket->user->phone}: $otp");
+
+//     return response()->json(['success' => true]);
+// }
+
+// public function verifyOtp(Request $request)
+// {
+//     $ticket = Support::findOrFail($request->ticket_id);
+
+//     if ($ticket->otp != $request->otp || now()->gt($ticket->otp_expires_at)) {
+//         return response()->json(['success' => false, 'message' => 'رمز التحقق غير صالح أو منتهي']);
+//     }
+
+//     $ticket->status = 2;
+//     $ticket->user_id = auth()->id();
+//     $ticket->save();
+
+//     return response()->json(['success' => true]);
+// }
 
 
 

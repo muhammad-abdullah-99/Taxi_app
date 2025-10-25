@@ -20,4 +20,4 @@ class Support extends Model
      public function appUser(){
       return $this->belongsTo(AppUser::class);
     }
-}
+} 
