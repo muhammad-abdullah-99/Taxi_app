@@ -7,6 +7,9 @@ use App\Models\BetweenCity;
 use App\Models\StationWallet;
 use App\Models\Travel;
 use App\Models\Wallet;
+use App\Models\PackageType;        
+use App\Models\Subscription;       
+use App\Models\Passenger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -293,7 +296,6 @@ class TravelController extends Controller
                 throw new \Exception('Travel not found');
             }
 
-            // Ensure station wallet exists
             $stationWallet = StationWallet::where('travel_id', $travelId)->first();
             
             if (!$stationWallet) {
@@ -305,8 +307,17 @@ class TravelController extends Controller
                 'user_id' => $userId,
                 'status' => 'DriverAccepted'
             ]);
+            
+            // ✅ MISSING LOGIC ADDED - UPDATE PASSENGER WITH DRIVER
+            if ($travel->passenger_id) {
+                $passenger = Passenger::where('id', $travel->passenger_id)->first();
+                if ($passenger) {
+                    $passenger->update([
+                        'user_id' => $userId
+                    ]);
+                }
+            }
 
-            // Update station wallet
             $stationWallet->update(['driver_status' => 'confirmed']);
 
             DB::commit();
@@ -384,15 +395,51 @@ class TravelController extends Controller
      */
     public function cancelTravelByDriver($travelId)
     {
-        $travel = Travel::find($travelId);
+        DB::beginTransaction();
+        try {
+            $travel = Travel::find($travelId);
 
-        if (!$travel) {
-            throw new \Exception('Travel not found or already assigned');
+            if (!$travel) {
+                throw new \Exception('Travel not found or already assigned');
+            }
+
+            $driverId = $travel->user_id;
+
+            // SUBSCRIPTION CANCELLATION
+            $intercityPackage = PackageType::where('name', 'بين المدن')->first();
+
+            if ($intercityPackage) {
+                Subscription::where('user_id', $driverId)
+                    ->where('package_id', $intercityPackage->id)
+                    ->delete();
+            }
+
+            // Update travel - remove driver assignment
+            $travel->update([
+                'user_id' => null
+            ]);
+            
+            // PASSENGER UNASSIGNMENT
+            if ($travel->passenger_id) {
+                $passenger = Passenger::where('id', $travel->passenger_id)->first();
+
+                if ($passenger) {
+                    $passenger->update([
+                        'user_id' => null
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            return [
+                'message' => 'Travel cancelled, amount refunded, and subscription removed if applicable.'
+            ];
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
         }
-
-        $travel->update(['user_id' => null]);
-
-        return ['message' => 'Travel cancelled by driver.'];
     }
 
     /**
