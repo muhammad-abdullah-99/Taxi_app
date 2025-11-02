@@ -67,7 +67,7 @@ Route::group(['prefix' => 'category'], function ($router) {
 // ==========================================
 // PASSENGERS (BOOKING) ROUTES
 // ==========================================
-Route::post('/employees/toggle-all-archive', [EmployeeController::class, 'toggleAllArchive']);
+// Route::post('/employees/toggle-all-archive', [EmployeeController::class, 'toggleAllArchive']);   
 
 Route::group(['prefix' => 'passengers'], function ($router) {
     // Passenger CRUD
@@ -94,12 +94,21 @@ Route::group(['prefix' => 'travels'], function ($router) {
     // Driver accepts travel
     Route::post('/accept/travel/{travelId}', [TravelController::class, 'acceptTravelRoute']);
     
+    // Passenger confirm travels 
+    Route::post('/passenger/confirm/{travelId}', [TravelController::class, 'passengerConfirmRide']);
+
     // Client travels
     Route::get('/show/client/{clientId}', [TravelController::class, 'getClientTravels']);
     
     // Cancel travel
-    Route::post('/cancel/client/travel/{travel}', [TravelController::class, 'cancelUnassignedTravelRoute']);
+    // Route::post('/cancel/client/travel/{travel}', [TravelController::class, 'cancelUnassignedTravelRoute']);
     Route::post('/cancel/travel/by/driver/{travel}', [TravelController::class, 'cancelTravelByDriverRoute']);
+    Route::post('/cancel/travel/by/passenger/{travelId}', [TravelController::class, 'cancelTravelByPassengerRoute']);
+
+    // Trip Management
+    Route::post('/show/travel/start/{travelId}', [TravelController::class, 'startTrip']);
+    Route::post('/show/travel/end/{travelId}', [TravelController::class, 'endTrip']);
+    Route::get('/show/travel/status/{travelId}', [TravelController::class, 'getTripStatus']);
     
     // Confirm order
     Route::post('/confirm/order/by/client/driver/{travel}', [TravelController::class, 'confirmOrderRoute']);
@@ -114,7 +123,7 @@ Route::group(['prefix' => 'travels'], function ($router) {
 Route::group(['prefix' => 'packages'], function ($router) {
     Route::get('/', [PackageController::class, 'show']);
     Route::post('/createSubscription', [SubController::class, 'createSubscription']);
-    Route::get('/Subscriptions/{driver}', [SubController::class, 'showSubscriptions']);
+    Route::get('/Subscriptions/{driver}', [SubController::class, 'showSubscriptions']); 
 });
 
 // ==========================================

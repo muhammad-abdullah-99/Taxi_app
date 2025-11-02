@@ -24,7 +24,7 @@ class EmployeeController extends Controller
 
         Employee::whereIn('id', $archivedIds)->update(['archive' => null]);
 
-        Employee::whereNotIn('id', $archivedIds)->update(['archive' => 'archivee']);
+        // Employee::whereNotIn('id', $archivedIds)->update(['archive' => 'archived']);
 
         return response()->json([
             'message' => 'تم أرشفة الموظف بنجاح'

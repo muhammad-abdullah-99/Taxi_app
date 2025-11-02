@@ -9,7 +9,6 @@ use App\Models\PassengerList;
 use App\Models\AppUser;
 use App\Models\Company;
 use App\Models\Vehicle;
-use App\Models\BetweenCity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -68,9 +67,6 @@ class PassengerController extends Controller
 
             DB::commit();
 
-            $betweenCity = BetweenCity::find($betweenCityId);
-            $transportTypes = $betweenCity ? $betweenCity->transport_types_arabic : [];
-
             $message = ($lang == 'ar') 
                 ? 'تم إنشاء الرحلة بنجاح وحجز الدفع.' 
                 : 'Passenger created successfully with payment hold.';
@@ -81,32 +77,21 @@ class PassengerController extends Controller
                 'data' => [
                     'passenger' => $passenger->load('list'),
                     'travel' => $travel ? $travel->load('client') : null,
-                    'transport_types' => $transportTypes,
-                    'between_city' => $betweenCity ? [
-                    'id' => $betweenCity->id,
-                    'city_one' => $betweenCity->city_one,
-                    'city_two' => $betweenCity->city_two,
-                    'transport_types' => $transportTypes
-                ] : null
                 ]
-            ], 201);    
+            ], 201);
             
-                } catch (\Exception $e) {
-                    DB::rollBack();
-                    
-                    $errorMessage = $e->getMessage();
-                    
-                    // Wallet errors = 400, Others = 500
-                    $statusCode = 400;
-                    if (str_contains($errorMessage, 'An error occurred') || str_contains($errorMessage, 'حدث خطأ')) {
-                        $statusCode = 500;
-                    }
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $errorMessage = ($lang == 'ar') 
+                ? 'حدث خطأ أثناء إنشاء الرحلة.' 
+                : 'An error occurred while creating the passenger.';
 
-                    return response()->json([
-                        'success' => false,
-                        'message' => $errorMessage
-                    ], $statusCode);
-                }
+            return response()->json([
+                'success' => false,
+                'message' => $errorMessage,
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -150,7 +135,6 @@ class PassengerController extends Controller
             'time' => $request->time,
             'passengers' => $request->count,
             'between_city_id' => $betweenCityId,
-            'selected_transport_type' => $request->selected_transport_type,
             'round_trip' => $request->boolean('round_trip')
         ];
 
@@ -185,33 +169,27 @@ class PassengerController extends Controller
     /**
      * Handle client travel with payment
      */
-private function handleClientTravel(Request $request, array $travelData, $lang)
-{
-    // Add client and location data
-    $travelData['client_id'] = $request->client_id;
-    $travelData['user_id'] = $request->user_id;
-    $travelData['latitude_from'] = $request->latitude_from;
-    $travelData['longitude_from'] = $request->longitude_from;
-    $travelData['latitude_to'] = $request->latitude_to;
-    $travelData['longitude_to'] = $request->longitude_to;
+    private function handleClientTravel(Request $request, array $travelData, $lang)
+    {
+        // Add client and location data
+        $travelData['client_id'] = $request->client_id;
+        $travelData['user_id'] = $request->user_id;
+        $travelData['latitude_from'] = $request->latitude_from;
+        $travelData['longitude_from'] = $request->longitude_from;
+        $travelData['latitude_to'] = $request->latitude_to;
+        $travelData['longitude_to'] = $request->longitude_to;
 
-    // Process payment and create travel
-    $travel = $this->travelController->processClientPaymentAndTravel(
-        $travelData,
-        $request->client_id,
-        $lang  // ✅ PASS LANG PARAMETER
-    );
+        // Process payment and create travel
+        $travel = $this->travelController->processClientPaymentAndTravel(
+            $travelData,
+            $request->client_id
+        );
 
-    // ✅ CHECK IF STATION WALLET ALREADY EXISTS
-    $existingWallet = \App\Models\StationWallet::where('travel_id', $travel->id)->first();
-    
-    if (!$existingWallet) {
-        // Create station wallet ONLY if not exists
+        // Create station wallet
         $this->travelController->createStationWallet($travel->id, $travel->amount);
-    }
 
-    return $travel;
-}
+        return $travel;
+    }
 
     /**
      * Update passenger

@@ -8,8 +8,38 @@ use Illuminate\Database\Eloquent\Model;
 class BetweenCity extends Model
 {
     use HasFactory;
+    
     protected $guarded = [];
-     public function travel(){
+    
+    public function travel(){
         return $this->hasMany(Travel::class,'between_city_id');
-      }
+    }
+
+    // Transport types with Arabic names
+    const TRANSPORT_TYPES = [
+        'limousine' => 'ليموزين',
+        'private_car' => 'سيارة خاصة', 
+        'bus' => 'حافلة',
+        'van' => 'فان',
+        'taxi' => 'تاكسي',
+        'minibus' => 'ميني باص'
+    ];
+
+    // Accessor for Arabic names
+    public function getTransportTypesArabicAttribute()
+    {
+        if (!$this->transport_types) return [];
+
+        $typesArray = explode(',', $this->transport_types);
+        $arabicNames = [];
+        
+        foreach ($typesArray as $type) {
+            $cleanType = trim($type);
+            if (isset(self::TRANSPORT_TYPES[$cleanType])) {
+                $arabicNames[] = self::TRANSPORT_TYPES[$cleanType];
+            }
+        }
+        
+        return $arabicNames;
+    }
 }

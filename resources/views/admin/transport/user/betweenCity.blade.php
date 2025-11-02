@@ -54,6 +54,25 @@
                     <input type="number" step="0.01" name="amount" class="form-control" placeholder="السعر" required>
 
                     <input type="number" step="0.01" name="office_commission" class="form-control" placeholder="نسبة المكتب" required>
+                    <!-- transport_types -->
+                    <div class="form-group">
+                        <label><strong>أنواع النقل:</strong></label>
+                        <div class="row">
+                            @foreach($transportTypes as $key => $arabicName)
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input type="checkbox" name="transport_types[]" 
+                                           value="{{ $key }}" 
+                                           id="transport_{{ $key }}"
+                                           class="form-check-input">
+                                    <label class="form-check-label" for="transport_{{ $key }}">
+                                        {{ $arabicName }}
+                                    </label>
+                                </div>
+                            </div>
+                            @endforeach
+                        </div>
+                    </div>
                     <!-- car_type -->
                     <select name="car_type" class="form-control">
                         <option value="">اختر نوع السيارة</option>
@@ -106,6 +125,7 @@
                                 <th>المدينة الثانية</th>
                                 <th>السعر</th>
                                 <th>التصنيف</th>
+                                <th>أنواع النقل</th>
                                 <th>نوع السيارة</th>
                                 <th>الكود</th>
                                 <th>نسبة المكتب</th>
@@ -120,6 +140,13 @@
                                 <td>{{ $item->city_two }}</td>
                                 <td>{{ number_format((float)$item->amount, 2) }}</td>
                                 <td>{{ $item->passengers }}</td>
+                                <td>
+                                    @if($item->transport_types_arabic)
+                                        {{ implode('، ', $item->transport_types_arabic) }}
+                                    @else
+                                        -
+                                    @endif
+                                </td>
                                 <td>{{ $item->car_type }}</td>
                                 <td>{{ $item->code }}</td>
                                 <td>{{ number_format((float)$item->office_commission, 2) }}</td>
@@ -155,7 +182,27 @@
                                                 <br>
                                                 <input type="number" step="0.01" name="office_commission" class="form-control" value="{{ $item->office_commission }}" required>
                                                 <br>
-
+                                                <!-- transport_types -->
+                                                <div class="form-group">
+                                                    <label><strong>أنواع النقل:</strong></label>
+                                                    <div class="row">
+                                                        @foreach($transportTypes as $key => $arabicName)
+                                                        <div class="col-md-6">
+                                                            <div class="form-check">
+                                                                <input type="checkbox" name="transport_types[]" 
+                                                                    value="{{ $key }}" 
+                                                                    id="edit_transport_{{ $item->id }}_{{ $key }}"
+                                                                    class="form-check-input"
+                                                                    {{ $item->transport_types && in_array($key, explode(',', $item->transport_types)) ? 'checked' : '' }}>
+                                                                <label class="form-check-label" for="edit_transport_{{ $item->id }}_{{ $key }}">
+                                                                    {{ $arabicName }}
+                                                                </label>
+                                                            </div>
+                                                        </div>
+                                                        @endforeach
+                                                    </div>
+                                                </div>
+                                                <br>
                                                 <select name="car_type" class="form-control">
                                                     <option value="">اختر نوع السيارة</option>
                                                     <option value="هايس" {{ $item->car_type == 'هايس' ? 'selected' : '' }}>هايس</option>

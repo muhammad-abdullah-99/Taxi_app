@@ -742,7 +742,7 @@ dashboard
                                 <div class="modal-dialog modal-lg" role="document">
                                     <div class="modal-content bg-dark text-white">
                                         <div class="modal-header">
-                                            <h5 class="modal-title">رخص السير السارية</h5>
+                                            <h5 class="modal-title text-white">رخص السير السارية</h5>
                                             <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">&times;</button>
                                         </div>
                                         <div class="modal-body">
@@ -755,7 +755,8 @@ dashboard
                                                         <th>الاسم</th>
                                                         <th>تاريخ الانتهاء</th>
                                                         <th>باقي أيام</th>
-                                                        <th>تعديل</th>
+                                                        <th>تحديث</th>
+                                                        <th>التسليم والاستلام</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -768,7 +769,12 @@ dashboard
                                                         <td>{{ \Carbon\Carbon::parse($doc->saer_expire_at)->format('Y-m-d') }}</td>
                                                         <td>{{ floor($remainingDays) }}</td>
                                                         <td>
-                                                            <button class="btn btn-sm btn-warning text-dark" data-toggle="modal" data-target="#editRukhsaExpireModal_{{ $doc->id }}">تعديل</button>
+                                                            <button class="btn btn-sm btn-warning text-dark" data-toggle="modal" data-target="#editRukhsaExpireModal_{{ $doc->id }}">تحديث</button>
+                                                        </td>
+                                                        <td>
+                                                            <a href="{{ route('showHandover', $doc->id) }}" class="btn btn-sm btn-info">
+                                                                عرض
+                                                            </a>
                                                         </td>
                                                     </tr>
                                                     @endforeach
@@ -871,7 +877,8 @@ dashboard
                                                         <th>الاسم</th>
                                                         <th>تاريخ الانتهاء</th>
                                                         <th>باقي أيام</th>
-                                                        <th>تعديل</th>
+                                                        <th>تحديث</th>
+                                                        <th>التسليم والاستلام</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -888,9 +895,14 @@ dashboard
                                                             <button class="btn btn-sm btn-warning text-dark"
                                                                 data-toggle="modal"
                                                                 data-target="#editExpireModal_{{ $docId }}">
-                                                                تعديل
+                                                                تحديث
                                                             </button>
                                                         </td>
+                                                        <td>
+                                                            <a href="{{ route('showHandover', $doc->id) }}" class="btn btn-sm btn-info">
+                                                            عرض
+                                                            </a>
+                                                        </td>                                                        
                                                     </tr>
                                                     @endforeach
                                                 </tbody>
@@ -984,7 +996,8 @@ dashboard
                                                         <th>الاسم</th>
                                                         <th>تاريخ الانتهاء</th>
                                                         <th> انتهت منذ(يوم) </th>
-                                                        <th>تعديل</th>
+                                                        <th>تحديث</th>
+                                                        <th>التسليم والاستلام</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -1001,8 +1014,13 @@ dashboard
                                                             <button class="btn btn-sm btn-danger text-white"
                                                                 data-toggle="modal"
                                                                 data-target="#editExpireModal_{{ $docId }}">
-                                                                تعديل
+                                                                تحديث
                                                             </button>
+                                                        </td>
+                                                        <td>
+                                                            <a href="{{ route('showHandover', $doc->    id) }}" class="btn btn-sm btn-info">
+                                                            عرض
+                                                            </a>
                                                         </td>
                                                     </tr>
                                                     @endforeach
@@ -2878,7 +2896,8 @@ dashboard
                             <th>الاسم</th>
                             <th>تاريخ الانتهاء</th>
                             <th>باقي أيام</th>
-                            <th>تعديل</th>
+                            <th>تحديث</th>
+                            <th>نماذج</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -2895,8 +2914,13 @@ dashboard
                                 <button class="btn btn-sm btn-warning text-dark"
                                     data-toggle="modal"
                                     data-target="#editExpireModalSareyah_{{ $empId }}">
-                                    تعديل
+                                    تحديث
                                 </button>
+                            </td>
+                            <td>
+                                <a href="{{ route('showAllPrints', $emp->id) }}" class="btn btn-success btn-sm">
+                                    نماذج
+                                </a>
                             </td>
                         </tr>
                         @endforeach
@@ -2983,7 +3007,8 @@ dashboard
                                 <th>الاسم</th>
                                 <th>تاريخ الانتهاء</th>
                                 <th>باقي أيام</th>
-                                <th>تعديل</th>
+                                <th>تحديث</th>
+                                <th>نماذج</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -3000,9 +3025,14 @@ dashboard
                                     <button class="btn btn-sm btn-warning text-dark"
                                         data-toggle="modal"
                                         data-target="#editExpireModalNear_{{ $empId }}">
-                                        تعديل
+                                        تحديث
                                     </button>
                                 </td>
+                            <td>
+                                <a href="{{ route('showAllPrints', $emp->id) }}" class="btn btn-success btn-sm">
+                                    نماذج
+                                </a>
+                            </td>                                
                             </tr>
                             @endforeach
                         </tbody>
@@ -3091,7 +3121,8 @@ dashboard
                                 <th>الاسم</th>
                                 <th>تاريخ الانتهاء</th>
                                 <th>انتهت منذ (أيام)</th>
-                                <th>تعديل</th>
+                                <th>تحديث</th>
+                                <th>نماذج</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -3108,9 +3139,14 @@ dashboard
                                     <button class="btn btn-sm btn-warning text-dark"
                                         data-toggle="modal"
                                         data-target="#editExpiredModal_{{ $docId }}">
-                                        تعديل
+                                        تحديث
                                     </button>
                                 </td>
+                            <td>
+                                <a href="{{ route('showAllPrints', $doc->id) }}" class="btn btn-success btn-sm">
+                                    نماذج
+                                </a>
+                            </td>                                
                             </tr>
                             @endforeach
                         </tbody>

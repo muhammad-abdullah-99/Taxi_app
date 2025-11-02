@@ -24,19 +24,32 @@ class StationWallet extends Model
                 if ($travel && $travel->user_id) {
                     $driverWallet = Wallet::where('user_id', $travel->user_id)->first();
                     if ($driverWallet) {
-                      WalletDetail::create([
-                          'wallet_id' => $driverWallet->id,
-                          'travel_id' => $travel->id,
-                          'name' => 'Payment Received',
-                          'amount' => $stationWallet->amount,
-                          'details' => 'رحلة من ' . $travel->from . ' إلى ' . $travel->to,
-                          'transaction_date' => now()->toDateString() // ✅ ADD THIS LINE
-                      ]);
+                        // ✅ CHECK: Pehle se record exist nahi karta
+                        $exists = WalletDetail::where('travel_id', $travel->id)
+                            ->where('wallet_id', $driverWallet->id)
+                            ->where('name', 'Payment Received')
+                            ->exists();
+                        
+                        if (!$exists) {
+                            WalletDetail::create([
+                                'wallet_id' => $driverWallet->id,
+                                'travel_id' => $travel->id,
+                                'name' => 'Payment Received',
+                                'amount' => $stationWallet->amount,
+                                'details' => 'رحلة من ' . $travel->from . ' إلى ' . $travel->to,
+                                'transaction_date' => now()->toDateString()
+                            ]);
+                        }
                     }
                 }
             }
             
-            // Payment cancelled - refund to passenger
+            // ✅ CRITICAL FIX: CANCELLATION KE LIYE YE BLOCK DISABLE KARO
+            // Kyunki TravelController mein already refund logic hai with percentage calculation
+            // Yahan se sirf duplicate entry ban rahi thi
+            
+            // COMMENT OUT YA DELETE KARO:
+            /*
             if ($stationWallet->isDirty('payment_status') && 
                 $stationWallet->payment_status === 'cancelled') {
                 
@@ -50,11 +63,12 @@ class StationWallet extends Model
                             'name' => 'Payment Refund',
                             'amount' => $stationWallet->amount,
                             'details' => 'إلغاء رحلة من ' . $travel->from . ' إلى ' . $travel->to,
-                            'transaction_date' => now()->toDateString() // ✅ ADD THIS LINE
+                            'transaction_date' => now()->toDateString()
                         ]);
                     }
                 }
             }
+            */
         });
     }
     
