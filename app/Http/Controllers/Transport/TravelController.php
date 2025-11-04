@@ -17,6 +17,12 @@ use Illuminate\Support\Facades\Log;
 
 class TravelController extends Controller
 {
+
+    private function getSaudiTime()
+    {
+        return \Carbon\Carbon::now('Asia/Riyadh');
+    }
+
     public function travels(Request $request)
     {
         $status = $request->get('status');
@@ -112,7 +118,9 @@ class TravelController extends Controller
             'passengers' => $data['passengers'],
             'between_city_id' => $data['between_city_id'],
             'selected_transport_type' => $data['selected_transport_type'] ?? null,
-            'round_trip' => $data['round_trip'] ?? false
+            'round_trip' => $data['round_trip'] ?? false,
+            'return_date' => $data['return_date'] ?? null,
+            'return_time' => $data['return_time'] ?? null,
         ]);
     }
 
@@ -121,6 +129,24 @@ class TravelController extends Controller
      */
     public function createClientTravel(array $data)
     {
+        $currentTime = $this->getSaudiTime();
+
+        // ✅ VALIDATE: Booking time must be at least 3 hours from now
+        $travelDateTime = \Carbon\Carbon::parse($data['date'] . ' ' . $data['time'], 'Asia/Riyadh');
+        $hoursFromNow = $currentTime->diffInHours($travelDateTime, false);
+        
+        // Multi-language error messages
+        $bookingMessages = [
+            'ar' => 'يجب أن يكون وقت الحجز 3 ساعات على الأقل من الوقت الحالي. يرجى اختيار وقت لاحق.',
+            'en' => 'Booking time must be at least 3 hours from current time. Please select a later time.',
+            'ur' => 'بکنگ کا وقت موجودہ وقت سے کم از کم 3 گھنٹے ہونا چاہیے۔ براہ کرم بعد کا وقت منتخب کریں۔'
+        ];
+        
+        if ($hoursFromNow < 3) {
+            $lang = $data['lang'] ?? 'en';
+            throw new \Exception($bookingMessages[$lang] ?? $bookingMessages['en']);
+        }  
+
         return Travel::create([
             'from' => $data['from'],
             'to' => $data['to'],
@@ -137,7 +163,9 @@ class TravelController extends Controller
             'longitude_to' => $data['longitude_to'] ?? null,
             'between_city_id' => $data['between_city_id'],
             'selected_transport_type' => $data['selected_transport_type'] ?? null,
-            'round_trip' => $data['round_trip'] ?? false
+            'round_trip' => $data['round_trip'] ?? false,
+            'return_date' => $data['return_date'] ?? null,
+            'return_time' => $data['return_time'] ?? null
         ]);
     }
 
@@ -369,7 +397,7 @@ public function getUnassignedTravelsFiltered(Request $request)
     public function getClientTravels($clientId)
     {
         $travels = Travel::where('client_id', $clientId)
-            ->with(['appUser.vehicle', 'between_city'])
+            ->with(['appUser.vehicle', 'between_city', 'stationWallet:travel_id,can_cancel_free'])
             ->get();
 
         return response()->json([
@@ -411,7 +439,7 @@ public function acceptTravel($travelId, $userId, $lang = 'en')
         if (!$travel) {
             throw new \Exception($messages[$lang]['not_found'] ?? $messages['en']['not_found']);
         }
-
+        
         $stationWallet = StationWallet::where('travel_id', $travelId)->first();
         if (!$stationWallet) {
             $stationWallet = $this->createStationWallet($travelId, $travel->amount);
@@ -420,7 +448,7 @@ public function acceptTravel($travelId, $userId, $lang = 'en')
         $travel->update([
             'user_id' => $userId,
             'status' => 'DriverAccepted',
-            'driver_assigned_at' => now()
+            'driver_assigned_at' => $this->getSaudiTime()
         ]);
         
         if ($travel->passenger_id) {
@@ -582,7 +610,7 @@ public function cancelTravelByDriver($travelId, $lang = 'en')
             foreach ($activeSubscriptions as $subscription) {
                 $subscription->update([
                     'status' => 'inactive', 
-                    'updated_at' => now()
+                    'updated_at' => $this->getSaudiTime()
                 ]);
                 \Log::info("Subscription inactive for driver: {$driverId}, Subscription ID: {$subscription->id}");
             }
@@ -602,7 +630,7 @@ public function cancelTravelByDriver($travelId, $lang = 'en')
             'user_id' => null, // ✅ Driver remove karo
             'status' => 'Waiting', // ✅ Status phir se 'Waiting' karo
             'driver_assigned_at' => null, // ✅ Driver assignment reset karo
-            'cancelled_at' => now()
+            'cancelled_at' => $this->getSaudiTime()
         ]);
         
         if ($travel->passenger_id) {
@@ -629,9 +657,6 @@ public function cancelTravelByDriver($travelId, $lang = 'en')
  * Passenger cancels travel with refund rules - PROTECTED VERSION
  */
 
-/**
- * Passenger cancels travel with refund rules - CLEAN VERSION
- */
 public function cancelTravelByPassenger($travelId, $passengerId, $lang = 'en')
 {
     $messages = [
@@ -723,15 +748,40 @@ public function cancelTravelByPassenger($travelId, $passengerId, $lang = 'en')
             throw new \Exception($messages[$lang]['unauthorized'] ?? $messages['en']['unauthorized']);
         }
 
-        // ✅ CALCULATE REFUND
-        $currentTime = now();
-        $driverAssignedTime = $travel->driver_assigned_at;
+        // ✅ CALCULATE ALL TIME-RELATED VALUES (ONCE ONLY)
+        $currentTime = $this->getSaudiTime();
+        $bookingTime = \Carbon\Carbon::parse($travel->created_at, 'Asia/Riyadh');
+        $travelDateTime = \Carbon\Carbon::parse($travel->date . ' ' . $travel->time, 'Asia/Riyadh');
+        
+        // Calculate booking advance time (in hours)
+        $bookingAdvanceHours = $bookingTime->diffInHours($travelDateTime, false);
+        
+        // Free cancellation window = booking advance time / 2
+        $freeCancellationWindowHours = $bookingAdvanceHours / 2;
+        
+        // Time remaining until trip starts (in hours)
+        $hoursRemainingUntilTrip = $currentTime->diffInHours($travelDateTime, false);
+        
+        // ✅ DETERMINE: can_cancel_free
+        // TRUE = Cancelling WITHIN free window (more time remaining than window)
+        // FALSE = Cancelling AFTER free window expires (less time remaining)
+        $canCancelFree = ($hoursRemainingUntilTrip > $freeCancellationWindowHours);
+
+        // ✅ CALCULATE REFUND PERCENTAGE
+        $driverAssignedTime = $travel->driver_assigned_at
+            ? \Carbon\Carbon::parse($travel->driver_assigned_at, 'Asia/Riyadh')
+            : null;
         
         if (!$driverAssignedTime) {
+            // No driver assigned yet - 100% refund
             $refundPercentage = 100;
+            $hoursSinceAssignment = 0;
         } else {
-            $hoursSinceAssignment = $driverAssignedTime->diffInHours($currentTime);
-            $refundPercentage = ($hoursSinceAssignment <= 12) ? 100 : 90;
+            // Driver assigned - calculate if within cancellation window
+            $hoursSinceAssignment = $driverAssignedTime->diffInHours($currentTime, false);
+            
+            // Within window = 100%, After = 90%
+            $refundPercentage = ($hoursSinceAssignment <= $freeCancellationWindowHours) ? 100 : 90;
         }
 
         $originalAmount = $travel->amount;
@@ -749,11 +799,12 @@ public function cancelTravelByPassenger($travelId, $passengerId, $lang = 'en')
             $stationWallet->update([
                 'client_status' => 'cancelled',
                 'payment_status' => 'cancelled',
-                'driver_status' => 'cancelled'
+                'driver_status' => 'cancelled',
+                'can_cancel_free' => $canCancelFree
             ]);
         }
 
-        // ✅ UPDATE TRAVEL STATUS (ONCE ONLY)
+        // ✅ UPDATE TRAVEL STATUS
         $travel->update([
             'status' => 'CancelledByPassenger',
             'cancelled_at' => $currentTime
@@ -800,7 +851,7 @@ public function cancelTravelByPassenger($travelId, $passengerId, $lang = 'en')
                     'refund_percentage' => $refundPercentage,
                     'details' => $simpleDetails,
                     'travel_id' => $travelId,
-                    'transaction_date' => now()
+                    'transaction_date' => $currentTime
                 ]);
                 
                 Log::info("WalletDetail created successfully for travel_id: {$travelId}");
@@ -816,7 +867,13 @@ public function cancelTravelByPassenger($travelId, $passengerId, $lang = 'en')
                 'refund_percentage' => $refundPercentage,
                 'refund_amount' => $refundAmount,
                 'deduction_amount' => $deductionAmount,
-                'original_amount' => $originalAmount
+                'original_amount' => $originalAmount,
+                'can_cancel_free' => $canCancelFree,
+                'booking_advance_hours' => round($bookingAdvanceHours, 1),
+                'free_cancellation_window_hours' => round($freeCancellationWindowHours, 1),
+                'hours_remaining_until_trip' => round($hoursRemainingUntilTrip, 1),
+                'hours_since_driver_assigned' => round($hoursSinceAssignment, 1),
+                'saudi_current_time' => $currentTime->format('Y-m-d H:i:s')
             ]
         ];
 
@@ -826,7 +883,6 @@ public function cancelTravelByPassenger($travelId, $passengerId, $lang = 'en')
         throw $e;
     }
 }
-
 
 // public function cancelTravelByPassenger($travelId, $passengerId, $lang = 'en')
 // {
@@ -1403,7 +1459,7 @@ public function startTrip($travelId, Request $request)
         
         $travel->update([
             'status' => 'InProgress',
-            'started_at' => now()
+            'started_at' => $this->getSaudiTime()
         ]);
         
         DB::commit();
@@ -1452,7 +1508,7 @@ public function endTrip($travelId, Request $request)
         
         $travel->update([
             'status' => 'Completed',
-            'ended_at' => now()
+            'ended_at' => $this->getSaudiTime()
         ]);
         
         DB::commit();

@@ -20,6 +20,11 @@ class PassengerController extends Controller
 {
     protected $travelController;
 
+    private function getSaudiTime()
+    {
+        return \Carbon\Carbon::now('Asia/Riyadh');
+    }
+
     public function __construct(TravelController $travelController)
     {
         $this->travelController = $travelController;
@@ -81,7 +86,7 @@ class PassengerController extends Controller
                 'data' => [
                     'passenger' => $passenger->load('list'),
                     'travel' => $travel ? $travel->load('client') : null,
-                    'transport_types' => $transportTypes,
+                    // 'transport_types' => $transportTypes,
                     'between_city' => $betweenCity ? [
                     'id' => $betweenCity->id,
                     'city_one' => $betweenCity->city_one,
@@ -142,6 +147,12 @@ class PassengerController extends Controller
      */
     private function handleTravelCreation(Request $request, $betweenCityId, $lang)
     {
+        $this->validateBookingTime($request->date, $request->time, $lang);
+
+        if ($request->boolean('round_trip')) {
+            $this->validateReturnTime($request->date, $request->time, $request->return_date, $request->return_time, $lang);
+        }
+
         $travelData = [
             'from' => $request->from,
             'to' => $request->to,
@@ -151,7 +162,9 @@ class PassengerController extends Controller
             'passengers' => $request->count,
             'between_city_id' => $betweenCityId,
             'selected_transport_type' => $request->selected_transport_type,
-            'round_trip' => $request->boolean('round_trip')
+            'round_trip' => $request->boolean('round_trip'),
+            'return_date' => $request->return_date,
+            'return_time' => $request->return_time            
         ];
 
         // Check if travel already exists
@@ -160,6 +173,8 @@ class PassengerController extends Controller
             'to' => $request->to,
             'date' => $request->date,
             'time' => $request->time,
+            'return_date' => $request->return_date,
+            'return_time' => $request->return_time,            
             'user_id' => $request->user_id,  // FIX:
             'client_id' => $request->client_id,
             'amount' => $request->amount,
@@ -194,6 +209,8 @@ private function handleClientTravel(Request $request, array $travelData, $lang)
     $travelData['longitude_from'] = $request->longitude_from;
     $travelData['latitude_to'] = $request->latitude_to;
     $travelData['longitude_to'] = $request->longitude_to;
+    $travelData['return_date'] = $request->return_date;
+    $travelData['return_time'] = $request->return_time;
 
     // Process payment and create travel
     $travel = $this->travelController->processClientPaymentAndTravel(
@@ -555,4 +572,85 @@ private function handleClientTravel(Request $request, array $travelData, $lang)
             ], 500);
         }
     }
+
+
+/**
+ * Validate booking time - Minimum 3 hours advance
+ */
+    private function validateBookingTime($selectedDate, $selectedTime, $lang = 'en')
+    {
+        $messages = [
+            'ar' => [
+                'minimum' => 'يجب أن يكون الحجز قبل 3 ساعات على الأقل من الآن',
+                'past' => 'لا يمكن الحجز في وقت مضى'
+            ],
+            'en' => [
+                'minimum' => 'Booking must be at least 3 hours in advance',
+                'past' => 'Cannot book in the past'
+            ],
+            'ur' => [
+                'minimum' => 'بکنگ کم از کم 3 گھنٹے پہلے ہونی چاہیے',
+                'past' => 'ماضی میں بک نہیں کیا جا سکتا'
+            ]
+        ];
+
+        $now = $this->getSaudiTime();
+        $selectedDateTime = \Carbon\Carbon::parse($selectedDate . ' ' . $selectedTime, 'Asia/Riyadh');
+        
+        // Past time check
+        if ($selectedDateTime <= $now) {
+            throw new \Exception($messages[$lang]['past'] ?? $messages['en']['past']);
+        }
+        
+        // Minimum 3 hours check
+        $hoursDiff = $now->diffInHours($selectedDateTime, false);
+        
+        if ($hoursDiff < 3) {
+            throw new \Exception($messages[$lang]['minimum'] ?? $messages['en']['minimum']);
+        }
+    }    
+
+/**
+ * Validate return time - should be after departure
+ */
+private function validateReturnTime($departureDate, $departureTime, $returnDate, $returnTime, $lang = 'en')
+{
+    $messages = [
+        'ar' => [
+            'return_after_departure' => 'يجب أن يكون وقت العودة بعد وقت المغادرة',
+            'return_past' => 'لا يمكن أن يكون وقت العودة في الماضي',
+            'return_required' => 'تاريخ ووقت العودة مطلوب للرحلات ذهابا وإيابا'
+        ],
+        'en' => [
+            'return_after_departure' => 'Return time must be after departure time',
+            'return_past' => 'Return time cannot be in the past',
+            'return_required' => 'Return date and time are required for round trips'
+        ],
+        'ur' => [
+            'return_after_departure' => 'واپسی کا وقت روانگی کے وقت کے بعد ہونا چاہیے',
+            'return_past' => 'واپسی کا وقت ماضی میں نہیں ہو سکتا',
+            'return_required' => 'راؤنڈ ٹرپ کے لیے واپسی کی تاریخ اور وقت درکار ہیں'
+        ]
+    ];
+
+    // Check if return date/time provided
+    if (!$returnDate || !$returnTime) {
+        throw new \Exception($messages[$lang]['return_required'] ?? $messages['en']['return_required']);
+    }
+
+    $now = $this->getSaudiTime();
+    $departureDateTime = \Carbon\Carbon::parse($departureDate . ' ' . $departureTime, 'Asia/Riyadh');
+    $returnDateTime = \Carbon\Carbon::parse($returnDate . ' ' . $returnTime, 'Asia/Riyadh');
+    
+    // Return time past check
+    if ($returnDateTime <= $now) {
+        throw new \Exception($messages[$lang]['return_past'] ?? $messages['en']['return_past']);
+    }
+    
+    // Return after departure check
+    if ($returnDateTime <= $departureDateTime) {
+        throw new \Exception($messages[$lang]['return_after_departure'] ?? $messages['en']['return_after_departure']);
+    }
+}
+    
 }

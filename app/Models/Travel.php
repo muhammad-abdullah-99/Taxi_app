@@ -30,7 +30,9 @@ class Travel extends Model
         'started_at',      // ✅ ADD - Trip start timestamp
         'ended_at',        // ✅ ADD - Trip end timestamp
         'driver_assigned_at',
-        'cancelled_at'
+        'cancelled_at',
+        'return_date', 
+        'return_time'
     ];
 
     // ✅ CHANGE 2: Add datetime casts for new fields
@@ -75,6 +77,12 @@ class Travel extends Model
     public function between_city()
     {
         return $this->belongsTo(BetweenCity::class,'between_city_id');
+    }
+
+    // ✅ ADD THIS RELATIONSHIP
+    public function stationWallet()
+    {
+        return $this->hasOne(StationWallet::class, 'travel_id');
     }
 
     // ✅ Accessor for transport_types
