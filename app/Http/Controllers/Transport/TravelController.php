@@ -18,6 +18,16 @@ use Illuminate\Support\Facades\Log;
 class TravelController extends Controller
 {
 
+    private function getLanguageFromRequest(Request $request, $default = 'ar')
+    {
+        $lang = $request->header('lang') 
+                ?? $request->header('Lang') 
+                ?? $request->header('Accept-Language')
+                ?? $request->get('lang', $default);
+        
+        return in_array($lang, ['en', 'ar', 'ur']) ? $lang : $default;
+    }    
+
     private function getSaudiTime()
     {
         return \Carbon\Carbon::now('Asia/Riyadh');
@@ -765,7 +775,7 @@ public function cancelTravelByPassenger($travelId, $passengerId, $lang = 'en')
         // ✅ DETERMINE: can_cancel_free
         // TRUE = Cancelling WITHIN free window (more time remaining than window)
         // FALSE = Cancelling AFTER free window expires (less time remaining)
-        $canCancelFree = ($hoursRemainingUntilTrip > $freeCancellationWindowHours);
+        $canCancelFree = ($hoursRemainingUntilTrip < $freeCancellationWindowHours);
 
         // ✅ CALCULATE REFUND PERCENTAGE
         $driverAssignedTime = $travel->driver_assigned_at
@@ -1109,7 +1119,7 @@ public function cancelTravelByPassenger($travelId, $passengerId, $lang = 'en')
     /**
      * Confirm order (by client or driver)
      */
-public function confirmOrder($travelId, $type)
+public function confirmOrder($travelId, $type, $lang = 'ar')  // ✅ LANG PARAMETER ADD KARO
 {
     if (!in_array($type, ['client', 'driver'])) {
         throw new \Exception('Invalid confirmation type');
@@ -1124,7 +1134,6 @@ public function confirmOrder($travelId, $type)
             throw new \Exception('Payment record not found.');
         }
 
-        // Already released?
         if ($stationWallet->payment_status === 'released') {
             DB::rollBack();
             return [
@@ -1133,27 +1142,22 @@ public function confirmOrder($travelId, $type)
             ];
         }
 
-        // ✅ CRITICAL CHECK: Trip must be COMPLETED (status check)
         if ($travel->status !== 'Completed') {
             DB::rollBack();
             throw new \Exception('Trip must be completed first by driver. Driver needs to end the trip before payment can be released.');
         }
 
-        // ✅ ONLY CLIENT CAN CONFIRM PAYMENT RELEASE
         if ($type !== 'client') {
             DB::rollBack();
             throw new \Exception('Only passenger can confirm payment release after trip completion.');
         }
 
-        // Update confirmation status
         if ($type === 'client') {
             if ($stationWallet->client_status === 'confirmed') {
                 DB::rollBack();
                 throw new \Exception('Client already confirmed.');
             }
             $stationWallet->client_status = 'confirmed';
-            
-            // ✅ AUTOMATICALLY DRIVER BHI CONFIRMED
             $stationWallet->driver_status = 'confirmed';
         }
         
@@ -1171,9 +1175,47 @@ public function confirmOrder($travelId, $type)
                 ['current_balance' => 0, 'total_recharge' => 0]
             );
 
+            // ✅ ADD THIS: CHECK IF WALLET DETAIL ALREADY EXISTS
+            $exists = WalletDetail::where('travel_id', $travelId)
+                ->where('wallet_id', $driverWallet->id)
+                ->exists();
+            
+            if (!$exists) {
+                // ✅ GET DRIVER'S LANGUAGE
+                $driver = \App\Models\AppUser::find($driverId);
+                $driverLang = $driver->preferred_language ?? $lang;
+                
+                // ✅ MULTI-LANGUAGE SUPPORT
+                $nameTranslations = [
+                    'ar' => 'استلام الدفع',
+                    'en' => 'Payment Received',
+                    'ur' => 'ادائیگی موصول ہوئی'
+                ];
+                
+                $detailsTranslations = [
+                    'ar' => 'رحلة من ' . $travel->from . ' إلى ' . $travel->to,
+                    'en' => 'Trip from ' . $travel->from . ' to ' . $travel->to,
+                    'ur' => $travel->from . ' سے ' . $travel->to . ' تک سفر'
+                ];
+                
+                // ✅ CREATE WALLET DETAIL FOR DRIVER
+                WalletDetail::create([
+                    'wallet_id' => $driverWallet->id,
+                    'travel_id' => $travelId,
+                    'name' => $nameTranslations[$driverLang] ?? $nameTranslations['ar'],
+                    'amount' => $stationWallet->amount,
+                    'details' => $detailsTranslations[$driverLang] ?? $detailsTranslations['ar'],
+                    'transaction_date' => $this->getSaudiTime()
+                ]);
+                
+                Log::info("Driver WalletDetail created for travel_id: {$travelId}, driver: {$driverId}, lang: {$driverLang}");
+            }
+
+            // ✅ UPDATE WALLET BALANCE
             $driverWallet->current_balance += $stationWallet->amount;
             $driverWallet->save();
 
+            // ✅ UPDATE STATUSES
             $travel->update(['status' => 'Finished']);
             $stationWallet->update(['payment_status' => 'released']);
 
@@ -1195,7 +1237,6 @@ public function confirmOrder($travelId, $type)
 
         DB::commit();
 
-        // ✅ AB YE CASE NAHI AYEGA KYUNKI SIRF CLIENT CONFIRM KAR SAKTA HAI
         return [
             'success' => true,
             'message' => ucfirst($type) . ' confirmed successfully.',
@@ -1337,11 +1378,15 @@ private function canCancelTravel($travelId)
      */
     public function acceptTravelRoute($travelId, Request $request)
     {
-            $request->validate([
-            'user_id' => 'required|exists:app_users,id'
-            ]);
+        $request->validate([
+            'user_id' => 'required|exists:app_users,id',
+            'lang' => 'nullable|in:en,ar,ur'
+        ]);
+        
         try {
-            $result = $this->acceptTravel($travelId, $request->user_id);
+            // ✅ HEADER SUPPORT ADDED
+            $lang = $this->getLanguageFromRequest($request, 'en');
+            $result = $this->acceptTravel($travelId, $request->user_id, $lang);
             return response()->json($result);
         } catch (\Exception $e) {
             return response()->json([
@@ -1369,10 +1414,16 @@ private function canCancelTravel($travelId)
     /**
      * Route wrapper: Cancel travel by driver
      */
-    public function cancelTravelByDriverRoute($travelId)
+    public function cancelTravelByDriverRoute($travelId, Request $request)
     {
+        $request->validate([
+            'lang' => 'nullable|in:en,ar,ur'
+        ]);
+        
         try {
-            $result = $this->cancelTravelByDriver($travelId);
+            // ✅ HEADER SUPPORT ADDED
+            $lang = $this->getLanguageFromRequest($request, 'en');
+            $result = $this->cancelTravelByDriver($travelId, $lang);
             return response()->json($result);
         } catch (\Exception $e) {
             return response()->json([
@@ -1384,37 +1435,47 @@ private function canCancelTravel($travelId)
         /**
          * Route wrapper: Cancel travel by passenger
          */
-        public function cancelTravelByPassengerRoute($travelId, Request $request)
-        {
-            // ✅ Accept Both Parameters
-            $validated = $request->validate([
-                'passenger_id' => 'nullable|exists:app_users,id',
-                'client_id' => 'nullable|exists:app_users,id',
-                'lang' => 'nullable|in:en,ar,ur' // ✅ LANG PARAMETER ADD KARO
-            ]);
+    public function cancelTravelByPassengerRoute($travelId, Request $request)
+    {
+        // ✅ Accept Both Parameters
+        $validated = $request->validate([
+            'passenger_id' => 'nullable|exists:app_users,id',
+            'client_id' => 'nullable|exists:app_users,id',
+            'lang' => 'nullable|in:en,ar,ur' // ✅ LANG PARAMETER ADD KARO
+        ]);
 
-            // At least one should be present
-            if (!$request->has('passenger_id') && !$request->has('client_id')) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Either passenger_id or client_id is required'
-                ], 400);
-            }
+        // At least one should be present
+        if (!$request->has('passenger_id') && !$request->has('client_id')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Either passenger_id or client_id is required'
+            ], 400);
+        }
 
-            try {
-                $passengerId = $request->passenger_id ?? $request->client_id;
-                $lang = $request->get('lang', 'en'); // ✅ DEFAULT 'en'
-                
-                // ✅ LANG PARAMETER PASS KARO
-                $result = $this->cancelTravelByPassenger($travelId, $passengerId, $lang);
-                return response()->json($result);
-            } catch (\Exception $e) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Error: ' . $e->getMessage()
-                ], 500);
+        try {
+            $passengerId = $request->passenger_id ?? $request->client_id;
+            
+            // ✅ CHECK HEADER FIRST, THEN BODY, THEN DEFAULT
+            $lang = $request->header('lang') 
+                    ?? $request->header('Lang') 
+                    ?? $request->header('Accept-Language')
+                    ?? $request->get('lang', 'ar'); // ✅ DEFAULT 'ar'
+            
+            // Ensure valid language
+            if (!in_array($lang, ['en', 'ar', 'ur'])) {
+                $lang = 'ar';
             }
-        }   
+            
+            // ✅ LANG PARAMETER PASS KARO
+            $result = $this->cancelTravelByPassenger($travelId, $passengerId, $lang);
+            return response()->json($result);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error: ' . $e->getMessage()
+            ], 500);
+        }
+    }   
 
     /**
      * Route wrapper: Confirm order
@@ -1423,10 +1484,13 @@ private function canCancelTravel($travelId)
     {
         $request->validate([
             'type' => 'required|in:client,driver',
+            'lang' => 'nullable|in:en,ar,ur'
         ]);
 
         try {
-            $result = $this->confirmOrder($travelId, $request->type);
+            // ✅ HEADER SUPPORT ADDED
+            $lang = $this->getLanguageFromRequest($request, 'ar');
+            $result = $this->confirmOrder($travelId, $request->type, $lang);
             return response()->json($result);
         } catch (\Exception $e) {
             return response()->json([
