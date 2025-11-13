@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Transport\BetweenCityController;
+
 use App\Models\AppUser;
 use App\Models\Car;
 use App\Models\CarDriver;
@@ -510,45 +512,81 @@ $deactive_documents = $total_documents - $active_documents ;
         $pendingCaptainsData = AppUser::whereNull('status')->where('user_type', 'Driver')->where('name', '!=', 'guest')->get();
 
 
-////
- $companyTypes = [
-        'الاجرة العامة',
-        'الاجرة الخاصة',
-        'النقل المتخصص',
-        'السيارات الخاصة للمقيمين',
-        'السيارات الخاصة للمواطنين',
-    ];
+//// OLD CODE
+//  $companyTypes = [
+//         'الاجرة العامة',
+//         'الاجرة الخاصة',
+//         'النقل المتخصص',
+//         'السيارات الخاصة للمقيمين',
+//         'السيارات الخاصة للمواطنين',
+//     ];
 
-    $data = [];
+//     $data = [];
 
-    foreach ($companyTypes as $type) {
-        $data[$type]['active'] = AppUser::where('user_type', 'Driver')
-            ->where('status', 1)
-            ->where('name', '!=', 'guest')
-            ->whereHas('company', function ($q) use ($type) {
-                $q->where('company_type', $type);
-            })
-            ->with('company')
-            ->get();
+//     foreach ($companyTypes as $type) {
+//         $data[$type]['active'] = AppUser::where('user_type', 'Driver')
+//             ->where('status', 1)
+//             ->where('name', '!=', 'guest')
+//             ->whereHas('company', function ($q) use ($type) {
+//                 $q->where('company_type', $type);
+//             })
+//             ->with('company')
+//             ->get();
 
-        $data[$type]['pending'] = AppUser::where('user_type', 'Driver')
-            ->whereNull('status')
-            ->where('name', '!=', 'guest')
-            ->whereHas('company', function ($q) use ($type) {
-                $q->where('company_type', $type);
-            })
-            ->with('company')
-            ->get();
+//         $data[$type]['pending'] = AppUser::where('user_type', 'Driver')
+//             ->whereNull('status')
+//             ->where('name', '!=', 'guest')
+//             ->whereHas('company', function ($q) use ($type) {
+//                 $q->where('company_type', $type);
+//             })
+//             ->with('company')
+//             ->get();
 
-        $data[$type]['archived'] = AppUser::where('user_type', 'Driver')
-            ->where('status', 2)
-            ->where('name', '!=', 'guest')
-            ->whereHas('company', function ($q) use ($type) {
-                $q->where('company_type', $type);
-            })
-            ->with('company')
-            ->get();
-    }
+//         $data[$type]['archived'] = AppUser::where('user_type', 'Driver')
+//             ->where('status', 2)
+//             ->where('name', '!=', 'guest')
+//             ->whereHas('company', function ($q) use ($type) {
+//                 $q->where('company_type', $type);
+//             })
+//             ->with('company')
+//             ->get();
+//     }
+
+// NEW CODE
+        // ✅ FIX: Use English keys from BetweenCityController
+        $companyTypes = BetweenCityController::getAllKeys(); // Returns: ['publicFare', 'privateFare', ...]
+
+        $data = [];
+
+        foreach ($companyTypes as $type) {
+            // ✅ All queries now use English keys
+            $data[$type]['active'] = AppUser::where('user_type', 'Driver')
+                ->where('status', 1)
+                ->where('name', '!=', 'guest')
+                ->whereHas('company', function ($q) use ($type) {
+                    $q->where('company_type', $type); // ✅ English key: 'publicFare'
+                })
+                ->with('company')
+                ->get();
+
+            $data[$type]['pending'] = AppUser::where('user_type', 'Driver')
+                ->whereNull('status')
+                ->where('name', '!=', 'guest')
+                ->whereHas('company', function ($q) use ($type) {
+                    $q->where('company_type', $type);
+                })
+                ->with('company')
+                ->get();
+
+            $data[$type]['archived'] = AppUser::where('user_type', 'Driver')
+                ->where('status', 2)
+                ->where('name', '!=', 'guest')
+                ->whereHas('company', function ($q) use ($type) {
+                    $q->where('company_type', $type);
+                })
+                ->with('company')
+                ->get();
+        }
 
 
 

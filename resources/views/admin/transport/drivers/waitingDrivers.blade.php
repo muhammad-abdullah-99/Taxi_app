@@ -88,9 +88,17 @@
                                 <!-- <td> - </td> -->
                                 <td>
 
-                                    <button class="btn btn-warning btn-sm" data-toggle="modal" data-target="#active{{$driver->id}}">
+                                    {{-- <button class="btn btn-warning btn-sm" data-toggle="modal" data-target="#active{{$driver->id}}">
                                         الموافقة علي التنشيط
-                                    </button>
+                                    </button> --}}
+                                    <form action="{{ route('activeDriver', $driver->id) }}" method="POST" style="display: inline;">
+                                        @csrf
+                                        <input type="hidden" name="lang" value="ar">
+                                        <button type="submit" class="btn btn-warning btn-sm" 
+                                                onclick="return confirm('تأكيد الموافقة على السائق: {{ $driver->name }}')">
+                                            الموافقة الفورية
+                                        </button>
+                                    </form>                                    
 
                                     @if (Auth::check() && Auth::user()->role == 'مسؤول')
 

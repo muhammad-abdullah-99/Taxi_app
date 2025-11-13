@@ -4,7 +4,14 @@
 <head>
     <meta charset="UTF-8">
     
-    <title>كشف الركاب</title>
+        <title>
+        @if(isset($isMobilePDF) && $isMobilePDF)
+            {{ $pageTitle }}
+        @else
+            كشف الركاب
+        @endif
+        </title>
+
 
     <style>
      
@@ -122,7 +129,31 @@
 
 <body onload="window.print();">
 
-    <div class="header">
+@if(isset($isMobilePDF) && $isMobilePDF)
+    <!-- MOBILE: Table Layout -->
+    <table class="header" style="width: 100%; border-collapse: collapse; border-bottom: 2px solid #444; margin-bottom: 10px; padding-bottom: 10px; table-layout: fixed;">
+        <tr>
+            <td style="width: 30%; padding: 10px; text-align: right; vertical-align: top; border: none;">
+                <strong>{{ $passenger->appUser->company->company_name ?? '-' }}</strong><br>
+                <strong> الرقم الموحد </strong> : {{ $passenger->appUser->company->company_registration_number ?? '-' }}
+            </td>
+            <td style="width: 40%; padding: 10px; text-align: center; vertical-align: top; border: none;">
+                {{-- QR Code هنا --}}
+                @php
+                $url = "https://aljawabtaxi.rosecaptain.com/api/passengers/download/" . $passenger->id;
+                $qrCode = QrCode::format('png')->size(100)->generate($url);
+                @endphp
+                {{-- {!! QrCode::format('svg')->size(100)->generate($url) !!} --}}
+                <img src="data:image/png;base64,{{ base64_encode($qrCode) }}" alt="QR Code" style="width: 100px; height: 100px;">
+            </td>
+            <td style="width: 30%; padding: 10px; text-align: left; vertical-align: top; border: none;">
+                <strong>المقر:</strong> {{ $passenger->appUser->company->company_location ?? '-' }} <br>
+                <strong>النشاط:</strong> {{ $passenger->appUser->company->company_type ?? '-' }}
+            </td>
+        </tr>
+    </table>
+@else
+<div class="header">
         <div style="flex: 1;">
             <strong>{{ $passenger->appUser->company->company_name ?? '-' }}</strong><br>
             <strong> الرقم الموحد </strong> : {{ $passenger->appUser->company->company_registration_number ?? '-' }}
@@ -141,6 +172,7 @@
             <strong>النشاط:</strong> {{ $passenger->appUser->company->company_type ?? '-' }}
         </div>
     </div>
+@endif
 
     <div class="title"> عقـد نقـل علـى الـطرق البـرية رقم : ({{ $passenger->id ?? '-' }})
     </div>
@@ -232,11 +264,38 @@
     <div class="page-break"></div>
     </br>
     </br>
-    <div class="header">
-         <div style="flex: 1;">
+@if(isset($isMobilePDF) && $isMobilePDF)
+    <!-- MOBILE: Table Layout -->
+    <table class="header" style="width: 100%; border-collapse: collapse; border-bottom: 2px solid #444; margin-bottom: 10px; padding-bottom: 10px; table-layout: fixed;">
+        <tr>
+            <td style="width: 30%; padding: 10px; text-align: right; vertical-align: top; border: none;">
+                <strong>{{ $passenger->appUser->company->company_name ?? '-' }}</strong><br>
+                <strong> الرقم الموحد </strong> : {{ $passenger->appUser->company->company_registration_number ?? '-' }}
+            </td>
+            <td style="width: 40%; padding: 10px; text-align: center; vertical-align: top; border: none;">
+                {{-- QR Code هنا --}}
+                @php
+                $url = "https://aljawabtaxi.rosecaptain.com/api/passengers/download/" . $passenger->id;
+                $qrCode = QrCode::format('png')->size(100)->generate($url);
+                @endphp
+                {{-- {!! QrCode::format('svg')->size(100)->generate($url) !!} --}}
+                <img src="data:image/png;base64,{{ base64_encode($qrCode) }}" alt="QR Code" style="width: 100px; height: 100px;">
+            </td>
+            <td style="width: 30%; padding: 10px; text-align: left; vertical-align: top; border: none;">
+                <strong>المقر:</strong> {{ $passenger->appUser->company->company_location ?? '-' }} <br>
+                <strong>النشاط:</strong> {{ $passenger->appUser->company->company_type ?? '-' }}
+            </td>
+        </tr>
+    </table>
+@else
+    <!-- WEB: Flex Layout -->
+    <div class="header" style="display: flex; justify-content: space-between; border-bottom: 2px solid #444; margin-bottom: 10px; padding-bottom: 10px;">
+        
+        <div style="flex: 1;">
             <strong>{{ $passenger->appUser->company->company_name ?? '-' }}</strong><br>
             <strong> الرقم الموحد </strong> : {{ $passenger->appUser->company->company_registration_number ?? '-' }}
         </div>
+
         <div style="flex: 0 0 130px; text-align: center;">
             {{-- QR Code هنا --}}
             @php
@@ -245,12 +304,15 @@
             {!! QrCode::format('svg')->size(100)->generate($url) !!}
         </div>
 
-
         <div style="flex: 1; text-align: left;">
             <strong>المقر:</strong> {{ $passenger->appUser->company->company_location ?? '-' }} <br>
             <strong>النشاط:</strong> {{ $passenger->appUser->company->company_type ?? '-' }}
         </div>
     </div>
+@endif
+
+
+
     <!-- <div class="section-title">بيانات الركاب</div> -->
     <div class="title"> كشف الركاب </div>
 

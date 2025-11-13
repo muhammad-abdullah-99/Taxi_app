@@ -25,7 +25,32 @@
 
 @section('content')
 
-<!-- الأخطاء -->
+<!-- ✅ JavaScript for Dynamic Max Passengers -->
+<script>
+function updateMaxPassengers(selectElement, passengersSelectId) {
+    const companyTypes = {!! json_encode($companyTypes) !!};
+    const selectedType = selectElement.value;
+    const passengersSelect = document.getElementById(passengersSelectId);
+    
+    if (!passengersSelect) return;
+    
+    // Get max passengers for selected company type
+    let maxPassengers = 8; // Default
+    if (selectedType && companyTypes[selectedType]) {
+        maxPassengers = companyTypes[selectedType].max_passengers;
+    }
+    
+    // Clear and rebuild options
+    passengersSelect.innerHTML = '';
+    for (let i = 1; i <= maxPassengers; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = i;
+        passengersSelect.appendChild(option);
+    }
+}
+</script>
+
 @if ($errors->any())
 <div class="alert alert-danger">
     <ul>
@@ -37,34 +62,70 @@
 @endif
 
 <!-- مودال الإضافة -->
-<div class="modal fade" id="addCityModal" tabindex="-1" role="dialog" aria-labelledby="addCityLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
+<div class="modal fade" id="addCityModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
         <form action="{{ route('between_cities.store') }}" method="POST">
             @csrf
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">إضافة </h5>
+                    <h5 class="modal-title">إضافة مسافة جديدة</h5>
                     <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
                 </div>
                 <div class="modal-body">
-                    <input type="text" name="city_one" class="form-control" placeholder="المدينة الأولى" required>
-                    <br>
-                    <input type="text" name="city_two" class="form-control" placeholder="المدينة الثانية" required>
-                    <br>
-                    <input type="number" step="0.01" name="amount" class="form-control" placeholder="السعر" required>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label><strong>المدينة الأولى:</strong></label>
+                            <input type="text" name="city_one" class="form-control mb-3" placeholder="المدينة الأولى" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label><strong>المدينة الثانية:</strong></label>
+                            <input type="text" name="city_two" class="form-control mb-3" placeholder="المدينة الثانية" required>
+                        </div>
+                    </div>
 
-                    <input type="number" step="0.01" name="office_commission" class="form-control" placeholder="نسبة المكتب" required>
-                    <!-- transport_types -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label><strong>السعر:</strong></label>
+                            <input type="number" step="0.01" name="amount" class="form-control mb-3" placeholder="السعر" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label><strong>نسبة المكتب:</strong></label>
+                            <input type="number" step="0.01" name="office_commission" class="form-control mb-3" placeholder="نسبة المكتب" required>
+                        </div>
+                    </div>
+
+                    <!-- ✅ نوع الشركة (Single Selection - Dropdown) -->
+                    <div class="form-group">
+                        <label><strong>نوع الشركة:</strong></label>
+                        <select name="company_type" id="add_company_type" class="form-control" 
+                                onchange="updateMaxPassengers(this, 'add_passengers')" required>
+                            <option value="">اختر نوع الشركة</option>
+                            @foreach($companyTypes as $key => $details)
+                                <option value="{{ $key }}">
+                                    {{ $details['name_ar'] }} - (حد أقصى: {{ $details['max_passengers'] }} راكب)
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <!-- ✅ عدد الركاب (التصنيف) - Dynamic based on company type -->
+                    <div class="form-group">
+                        <label><strong>التصنيف (عدد الركاب):</strong></label>
+                        <select name="passengers" id="add_passengers" class="form-control" required>
+                            <option value="">اختر نوع الشركة أولاً</option>
+                        </select>
+                        <small class="form-text text-muted">سيتم تحديث الخيارات تلقائيًا حسب نوع الشركة</small>
+                    </div>
+
+                    <!-- أنواع النقل -->
                     <div class="form-group">
                         <label><strong>أنواع النقل:</strong></label>
                         <div class="row">
                             @foreach($transportTypes as $key => $arabicName)
                             <div class="col-md-6">
                                 <div class="form-check">
-                                    <input type="checkbox" name="transport_types[]" 
-                                           value="{{ $key }}" 
-                                           id="transport_{{ $key }}"
-                                           class="form-check-input">
+                                    <input type="checkbox" name="transport_types[]" value="{{ $key }}" 
+                                           class="form-check-input" id="transport_{{ $key }}">
                                     <label class="form-check-label" for="transport_{{ $key }}">
                                         {{ $arabicName }}
                                     </label>
@@ -73,34 +134,28 @@
                             @endforeach
                         </div>
                     </div>
-                    <!-- car_type -->
-                    <select name="car_type" class="form-control">
-                        <option value="">اختر نوع السيارة</option>
-                        <option value="هايس">هايس</option>
-                        <option value="استاركس">استاركس</option>
-                        <option value="استاريا">استاريا</option>
-                        <option value="كامري">كامري</option>
-                        <option value="سوناتا">سوناتا</option>
-                        <option value="كيا k5">كيا k5</option>
-                        <option value="ميتسويشي اكس باندر">ميتسويشي اكس باندر</option>
-                        <option value="النترا">النترا</option>
-                        <option value="جمس">جمس</option>
-                    </select>
-                    <br>
-                    <!-- code -->
-                    <input type="text" name="code" class="form-control" placeholder="الكود">
-                    <br>
 
-                    <select name="passengers" class="form-control" required>
-                        <option value="4">4</option>
-                        <option value="7">7</option>
-                        <option value="8">8</option>
-                        <option value="9">9</option>
-                        <option value="11">11</option>
-                        <option value="12">12</option>
-                        <option value="13">13</option>
-                        <option value="14">14</option>
-                    </select>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label><strong>نوع السيارة:</strong></label>
+                            <select name="car_type" class="form-control mb-3">
+                                <option value="">Auto</option>
+                                <option value="هايس">هايس</option>
+                                <option value="استاركس">استاركس</option>
+                                <option value="استاريا">استاريا</option>
+                                <option value="كامري">كامري</option>
+                                <option value="سوناتا">سوناتا</option>
+                                <option value="كيا k5">كيا k5</option>
+                                <option value="ميتسويشي اكس باندر">ميتسويشي اكس باندر</option>
+                                <option value="النترا">النترا</option>
+                                <option value="جمس">جمس</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label><strong>الكود:</strong></label>
+                            <input type="text" name="code" class="form-control mb-3" placeholder="الكود">
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" data-dismiss="modal">إغلاق</button>
@@ -124,6 +179,7 @@
                                 <th>المدينة الأولى</th>
                                 <th>المدينة الثانية</th>
                                 <th>السعر</th>
+                                <th>نوع الشركة</th>
                                 <th>التصنيف</th>
                                 <th>أنواع النقل</th>
                                 <th>نوع السيارة</th>
@@ -139,6 +195,13 @@
                                 <td>{{ $item->city_one }}</td>
                                 <td>{{ $item->city_two }}</td>
                                 <td>{{ number_format((float)$item->amount, 2) }}</td>
+                                <td>
+                                    @if($item->company_type && isset($companyTypes[$item->company_type]))
+                                        {{ $companyTypes[$item->company_type]['name_ar'] }}
+                                    @else
+                                        -
+                                    @endif
+                                </td>
                                 <td>{{ $item->passengers }}</td>
                                 <td>
                                     @if($item->transport_types_arabic)
@@ -147,54 +210,90 @@
                                         -
                                     @endif
                                 </td>
-                                <td>{{ $item->car_type }}</td>
+                                <td>{{ $item->car_type ?: 'Auto' }}</td>
                                 <td>{{ $item->code }}</td>
                                 <td>{{ number_format((float)$item->office_commission, 2) }}</td>
                                 <td>
-                                    <!-- زر تعديل -->
                                     <button class="btn btn-info btn-sm" data-toggle="modal" data-target="#edit{{ $item->id }}">
                                         تعديل
                                     </button>
-
-                                    <!-- زر حذف -->
-                                    <!-- <button class="btn btn-danger btn-sm" data-toggle="modal" data-target="#delete{{ $item->id }}">
-                                        حذف
-                                    </button> -->
                                 </td>
                             </tr>
 
                             <!-- مودال تعديل -->
-                            <div class="modal fade" id="edit{{ $item->id }}" tabindex="-1" role="dialog">
-                                <div class="modal-dialog" role="document">
+                            <div class="modal fade" id="edit{{ $item->id }}" tabindex="-1">
+                                <div class="modal-dialog modal-lg">
                                     <form action="{{ route('between_cities.update', $item->id) }}" method="POST">
                                         @csrf
                                         <div class="modal-content">
                                             <div class="modal-header">
-                                                <h5 class="modal-title">تعديل </h5>
+                                                <h5 class="modal-title">تعديل المسافة</h5>
                                                 <button class="close" data-dismiss="modal"><span>&times;</span></button>
                                             </div>
                                             <div class="modal-body">
-                                                <input type="text" name="city_one" class="form-control" value="{{ $item->city_one }}" required>
-                                                <br>
-                                                <input type="text" name="city_two" class="form-control" value="{{ $item->city_two }}" required>
-                                                <br>
-                                                <input type="number" step="0.01" name="amount" class="form-control" value="{{ $item->amount }}" required>
-                                                <br>
-                                                <input type="number" step="0.01" name="office_commission" class="form-control" value="{{ $item->office_commission }}" required>
-                                                <br>
-                                                <!-- transport_types -->
+                                                <div class="row">
+                                                    <div class="col-md-6">
+                                                        <label><strong>المدينة الأولى:</strong></label>
+                                                        <input type="text" name="city_one" class="form-control mb-3" value="{{ $item->city_one }}" required>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <label><strong>المدينة الثانية:</strong></label>
+                                                        <input type="text" name="city_two" class="form-control mb-3" value="{{ $item->city_two }}" required>
+                                                    </div>
+                                                </div>
+
+                                                <div class="row">
+                                                    <div class="col-md-6">
+                                                        <label><strong>السعر:</strong></label>
+                                                        <input type="number" step="0.01" name="amount" class="form-control mb-3" value="{{ $item->amount }}" required>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <label><strong>نسبة المكتب:</strong></label>
+                                                        <input type="number" step="0.01" name="office_commission" class="form-control mb-3" value="{{ $item->office_commission }}" required>
+                                                    </div>
+                                                </div>
+
+                                                <!-- نوع الشركة -->
+                                                <div class="form-group">
+                                                    <label><strong>نوع الشركة:</strong></label>
+                                                    <select name="company_type" id="edit_company_type_{{ $item->id }}" class="form-control" 
+                                                            onchange="updateMaxPassengers(this, 'edit_passengers_{{ $item->id }}')" required>
+                                                        <option value="">اختر نوع الشركة</option>
+                                                        @foreach($companyTypes as $key => $details)
+                                                            <option value="{{ $key }}" {{ $item->company_type == $key ? 'selected' : '' }}>
+                                                                {{ $details['name_ar'] }} - (حد أقصى: {{ $details['max_passengers'] }} راكب)
+                                                            </option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+
+                                                <!-- عدد الركاب -->
+                                                <div class="form-group">
+                                                    <label><strong>التصنيف (عدد الركاب):</strong></label>
+                                                    <select name="passengers" id="edit_passengers_{{ $item->id }}" class="form-control" required>
+                                                        @php
+                                                            $maxPass = 8;
+                                                            if($item->company_type && isset($companyTypes[$item->company_type])) {
+                                                                $maxPass = $companyTypes[$item->company_type]['max_passengers'];
+                                                            }
+                                                        @endphp
+                                                        @for($i = 1; $i <= $maxPass; $i++)
+                                                            <option value="{{ $i }}" {{ $item->passengers == $i ? 'selected' : '' }}>{{ $i }}</option>
+                                                        @endfor
+                                                    </select>
+                                                </div>
+
+                                                <!-- أنواع النقل -->
                                                 <div class="form-group">
                                                     <label><strong>أنواع النقل:</strong></label>
                                                     <div class="row">
                                                         @foreach($transportTypes as $key => $arabicName)
                                                         <div class="col-md-6">
                                                             <div class="form-check">
-                                                                <input type="checkbox" name="transport_types[]" 
-                                                                    value="{{ $key }}" 
-                                                                    id="edit_transport_{{ $item->id }}_{{ $key }}"
-                                                                    class="form-check-input"
-                                                                    {{ $item->transport_types && in_array($key, explode(',', $item->transport_types)) ? 'checked' : '' }}>
-                                                                <label class="form-check-label" for="edit_transport_{{ $item->id }}_{{ $key }}">
+                                                                <input type="checkbox" name="transport_types[]" value="{{ $key }}" 
+                                                                       class="form-check-input" id="edit{{ $item->id }}_transport_{{ $key }}"
+                                                                       {{ $item->transport_types && in_array($key, explode(',', $item->transport_types)) ? 'checked' : '' }}>
+                                                                <label class="form-check-label" for="edit{{ $item->id }}_transport_{{ $key }}">
                                                                     {{ $arabicName }}
                                                                 </label>
                                                             </div>
@@ -202,32 +301,28 @@
                                                         @endforeach
                                                     </div>
                                                 </div>
-                                                <br>
-                                                <select name="car_type" class="form-control">
-                                                    <option value="">اختر نوع السيارة</option>
-                                                    <option value="هايس" {{ $item->car_type == 'هايس' ? 'selected' : '' }}>هايس</option>
-                                                    <option value="استاركس" {{ $item->car_type == 'استاركس' ? 'selected' : '' }}>استاركس</option>
-                                                    <option value="استاريا" {{ $item->car_type == 'استاريا' ? 'selected' : '' }}>استاريا</option>
-                                                    <option value="كامري" {{ $item->car_type == 'كامري' ? 'selected' : '' }}>كامري</option>
-                                                    <option value="سوناتا" {{ $item->car_type == 'سوناتا' ? 'selected' : '' }}>سوناتا</option>
-                                                    <option value="كيا k5" {{ $item->car_type == 'كيا k5' ? 'selected' : '' }}>كيا k5</option>
-                                                    <option value="ميتسويشي اكس باندر" {{ $item->car_type == 'ميتسويشي اكس باندر' ? 'selected' : '' }}>ميتسويشي اكس باندر</option>
-                                                    <option value="النترا" {{ $item->car_type == 'النترا' ? 'selected' : '' }}>النترا</option>
-                                                    <option value="جمس" {{ $item->car_type == 'جمس' ? 'selected' : '' }}>جمس</option>
-                                                </select>
-                                                <br>
-                                                <input type="text" name="code" class="form-control" value="{{ $item->code }}" placeholder="الكود">
-                                                <br>
-                                                <select name="passengers" class="form-control" required>
-                                                    <option value="4" {{ $item->passengers == 4 ? 'selected' : '' }}>4</option>
-                                                    <option value="7" {{ $item->passengers == 7 ? 'selected' : '' }}>7</option>
-                                                    <option value="8" {{ $item->passengers == 8 ? 'selected' : '' }}>8</option>
-                                                    <option value="9" {{ $item->passengers == 9 ? 'selected' : '' }}>9</option>
-                                                    <option value="11" {{ $item->passengers == 11 ? 'selected' : '' }}>11</option>
-                                                    <option value="12" {{ $item->passengers == 12 ? 'selected' : '' }}>12</option>
-                                                    <option value="13" {{ $item->passengers == 13 ? 'selected' : '' }}>13</option>
-                                                    <option value="14" {{ $item->passengers == 14 ? 'selected' : '' }}>14</option>
-                                                </select>
+
+                                                <div class="row">
+                                                    <div class="col-md-6">
+                                                        <label><strong>نوع السيارة:</strong></label>
+                                                        <select name="car_type" class="form-control mb-3">
+                                                            <option value="">Auto</option>
+                                                            <option value="هايس" {{ $item->car_type == 'هايس' ? 'selected' : '' }}>هايس</option>
+                                                            <option value="استاركس" {{ $item->car_type == 'استاركس' ? 'selected' : '' }}>استاركس</option>
+                                                            <option value="استاريا" {{ $item->car_type == 'استاريا' ? 'selected' : '' }}>استاريا</option>
+                                                            <option value="كامري" {{ $item->car_type == 'كامري' ? 'selected' : '' }}>كامري</option>
+                                                            <option value="سوناتا" {{ $item->car_type == 'سوناتا' ? 'selected' : '' }}>سوناتا</option>
+                                                            <option value="كيا k5" {{ $item->car_type == 'كيا k5' ? 'selected' : '' }}>كيا k5</option>
+                                                            <option value="ميتسويشي اكس باندر" {{ $item->car_type == 'ميتسويشي اكس باندر' ? 'selected' : '' }}>ميتسويشي اكس باندر</option>
+                                                            <option value="النترا" {{ $item->car_type == 'النترا' ? 'selected' : '' }}>النترا</option>
+                                                            <option value="جمس" {{ $item->car_type == 'جمس' ? 'selected' : '' }}>جمس</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <label><strong>الكود:</strong></label>
+                                                        <input type="text" name="code" class="form-control mb-3" value="{{ $item->code }}" placeholder="الكود">
+                                                    </div>
+                                                </div>
                                             </div>
                                             <div class="modal-footer">
                                                 <button class="btn btn-secondary" data-dismiss="modal">إغلاق</button>
@@ -237,30 +332,6 @@
                                     </form>
                                 </div>
                             </div>
-
-                            <!-- مودال حذف -->
-                            <div class="modal fade" id="delete{{ $item->id }}" tabindex="-1" role="dialog">
-                                <div class="modal-dialog" role="document">
-                                    <form action="#" method="POST">
-                                        @csrf
-                                        @method('DELETE')
-                                        <div class="modal-content">
-                                            <div class="modal-header">
-                                                <h5 class="modal-title">حذف المسافة</h5>
-                                                <button class="close" data-dismiss="modal"><span>&times;</span></button>
-                                            </div>
-                                            <div class="modal-body">
-                                                هل أنت متأكد أنك تريد حذف هذه المسافة؟
-                                            </div>
-                                            <div class="modal-footer">
-                                                <button class="btn btn-secondary" data-dismiss="modal">إغلاق</button>
-                                                <button class="btn btn-danger" type="submit">حذف</button>
-                                            </div>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-
                             @endforeach
                         </tbody>
                     </table>

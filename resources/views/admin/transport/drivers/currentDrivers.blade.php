@@ -178,7 +178,16 @@
                                                     <strong>رقم التسجيل:</strong> <span>{{ optional($driver->company)->company_registration_number ?? 'غير متوفر' }}</span>
                                                 </li>
                                                 <li class="list-group-item d-flex justify-content-between align-items-center">
-                                                    <strong>نوع الشركة:</strong> <span>{{ optional($driver->company)->company_type ?? 'غير متوفر' }}</span>
+                                                    <strong>نوع الشركة:</strong> 
+                                                    {{-- <span>{{ optional($driver->company)->company_type ?? 'غير متوفر' }}</span> --}}
+                                                    <span>
+                                                        {{-- ✅ FIXED: Convert English key to Arabic name --}}
+                                                        @if(optional($driver->company)->company_type)
+                                                            {{ \App\Http\Controllers\Transport\BetweenCityController::toArabic($driver->company->company_type) }}
+                                                        @else
+                                                            غير متوفر
+                                                        @endif
+                                                    </span>
                                                 </li>
                                             </ul>
                                         </div>

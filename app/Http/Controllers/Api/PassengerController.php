@@ -2,6 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
+use Barryvdh\DomPDF\Facade\Pdf;
+use Mpdf\Mpdf;
+
+
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Transport\TravelController;
 use App\Models\Passenger;
@@ -66,15 +70,62 @@ class PassengerController extends Controller
                 ], 400);
             }
 
-            // 4. Create Travel (if date provided)
+            // 4. Create Travel (if date provided) with ALL validations
             if ($request->date) {
                 $travel = $this->handleTravelCreation($request, $betweenCityId, $lang);
+                
+                // CRITICAL: Link passenger to travel
+                if ($travel && $travel->id && !$travel->passenger_id) {
+                    $travel->update(['passenger_id' => $passenger->id]);
+                    Log::info("Passenger {$passenger->id} linked to travel {$travel->id}");
+                }
             }
 
             DB::commit();
 
             $betweenCity = BetweenCity::find($betweenCityId);
             $transportTypes = $betweenCity ? $betweenCity->transport_types_arabic : [];
+
+        // ✅ Get company_type details (NEW)
+        $companyTypeDetails = null;
+        if ($betweenCity && $betweenCity->company_type) {
+            $companyTypes = \App\Http\Controllers\Transport\BetweenCityController::COMPANY_TYPES;
+            if (isset($companyTypes[$betweenCity->company_type])) {
+                $companyTypeDetails = [
+                    'key' => $betweenCity->company_type,
+                    'name_ar' => $companyTypes[$betweenCity->company_type]['name_ar'],
+                    'name_en' => $companyTypes[$betweenCity->company_type]['name_en'],
+                    'max_passengers' => $companyTypes[$betweenCity->company_type]['max_passengers'],
+                    'transport_type' => $companyTypes[$betweenCity->company_type]['transport_type']
+                ];
+            }
+        }
+
+        // ✅ NEW: Get transport_type from created travel
+        $travelTransportType = null;
+
+        
+        if ($travel) {
+            // Priority 1: Check if travel has selected_transport_type
+            if ($travel->selected_transport_type) {
+                $travelTransportType = $travel->selected_transport_type;
+            }
+            // Priority 2: Get from travel's company_type
+            elseif ($travel->company_type) {
+                $companyTypes = \App\Http\Controllers\Transport\BetweenCityController::COMPANY_TYPES;
+                if (isset($companyTypes[$travel->company_type]['transport_type'])) {
+                    $travelTransportType = $companyTypes[$travel->company_type]['transport_type'];
+                }
+            }
+            // Priority 3: Get from betweenCity's company_type (fallback)
+            elseif ($betweenCity && $betweenCity->company_type) {
+                $companyTypes = \App\Http\Controllers\Transport\BetweenCityController::COMPANY_TYPES;
+                if (isset($companyTypes[$betweenCity->company_type]['transport_type'])) {
+                    $travelTransportType = $companyTypes[$betweenCity->company_type]['transport_type'];
+                }
+            }
+        }        
+
 
             $message = ($lang == 'ar') 
                 ? 'تم إنشاء الرحلة بنجاح وحجز الدفع.' 
@@ -86,12 +137,13 @@ class PassengerController extends Controller
                 'data' => [
                     'passenger' => $passenger->load('list'),
                     'travel' => $travel ? $travel->load('client') : null,
-                    // 'transport_types' => $transportTypes,
+                    'transport_type' => $travelTransportType,
                     'between_city' => $betweenCity ? [
                     'id' => $betweenCity->id,
                     'city_one' => $betweenCity->city_one,
                     'city_two' => $betweenCity->city_two,
-                    'transport_types' => $transportTypes
+                    'transport_types' => $transportTypes,
+                    'company_type' => $companyTypeDetails
                 ] : null
                 ]
             ], 201);    
@@ -145,57 +197,93 @@ class PassengerController extends Controller
     /**
      * Handle travel creation based on request type
      */
-    private function handleTravelCreation(Request $request, $betweenCityId, $lang)
-    {
-        $this->validateBookingTime($request->date, $request->time, $lang);
+private function handleTravelCreation(Request $request, $betweenCityId, $lang)
+{
+    $this->validateBookingTime($request->date, $request->time, $lang);
 
-        if ($request->boolean('round_trip')) {
-            $this->validateReturnTime($request->date, $request->time, $request->return_date, $request->return_time, $lang);
-        }
-
-        $travelData = [
-            'from' => $request->from,
-            'to' => $request->to,
-            'date' => $request->date,
-            'amount' => $request->amount,
-            'time' => $request->time,
-            'passengers' => $request->count,
-            'between_city_id' => $betweenCityId,
-            'selected_transport_type' => $request->selected_transport_type,
-            'round_trip' => $request->boolean('round_trip'),
-            'return_date' => $request->return_date,
-            'return_time' => $request->return_time            
-        ];
-
-        // Check if travel already exists
-        $existingTravel = $this->travelController->findExistingTravel([
-            'from' => $request->from,
-            'to' => $request->to,
-            'date' => $request->date,
-            'time' => $request->time,
-            'return_date' => $request->return_date,
-            'return_time' => $request->return_time,            
-            'user_id' => $request->user_id,  // FIX:
-            'client_id' => $request->client_id,
-            'amount' => $request->amount,
-            'passengers' => $request->count,
-            'round_trip' => $request->boolean('round_trip')
-        ]);
-
-        if ($existingTravel) {
-            return $existingTravel;
-        }
-
-        // Create new travel based on type
-        if ($request->client_id) {
-            return $this->handleClientTravel($request, $travelData, $lang);
-        } elseif ($request->user_id) {
-            $travelData['user_id'] = $request->user_id;  // FIX:
-            return $this->travelController->createAssignedTravel($travelData);
-        }
-
-        return null;
+    if ($request->boolean('round_trip')) {
+        $this->validateReturnTime($request->date, $request->time, $request->return_date, $request->return_time, $lang);
     }
+
+    // ✅ Get BetweenCity for company_type
+    $betweenCity = BetweenCity::find($betweenCityId);
+    
+    // ✅ PRIORITY: Request > BetweenCity
+    $companyType = $request->company_type ?? ($betweenCity ? $betweenCity->company_type : null);
+
+    // ✅ NEW: Get transport_type from company_type
+    $transportType = $request->selected_transport_type; // Default from request
+    
+    if ($companyType) {
+        $companyTypes = \App\Http\Controllers\Transport\BetweenCityController::COMPANY_TYPES;
+        
+        if (isset($companyTypes[$companyType]['transport_type'])) {
+            // Only override if not explicitly sent in request
+            if (!$request->selected_transport_type) {
+                $transportType = $companyTypes[$companyType]['transport_type'];
+            }
+        }
+    }
+    
+    // ✅ Build travel data with company_type
+    $travelData = [
+        'from' => $request->from,
+        'to' => $request->to,
+        'date' => $request->date,
+        'amount' => $request->amount,
+        'time' => $request->time,
+        'passengers' => $request->count,
+        'between_city_id' => $betweenCityId,
+        'company_type' => $companyType, // ✅ NEW
+        'selected_transport_type' => $transportType,
+        'round_trip' => $request->boolean('round_trip'),
+        'return_date' => $request->return_date,
+        'return_time' => $request->return_time,
+        'lang' => $lang            
+    ];
+
+    // Check if travel already exists
+    $existingTravel = $this->travelController->findExistingTravel([
+        'from' => $request->from,
+        'to' => $request->to,
+        'date' => $request->date,
+        'time' => $request->time,
+        'return_date' => $request->return_date,
+        'return_time' => $request->return_time,            
+        'user_id' => $request->user_id,
+        'client_id' => $request->client_id,
+        'amount' => $request->amount,
+        'passengers' => $request->count,
+        'round_trip' => $request->boolean('round_trip')
+    ]);
+
+    // STEP 4: Revalidate existing travel
+    if ($existingTravel) {
+        $revalidatedTravel = $this->travelController->validateExistingTrip(
+            $existingTravel,
+            $request->count,
+            $request->selected_transport_type,
+            $lang
+        );
+
+        if ($revalidatedTravel) {
+            Log::info("Returning revalidated existing trip {$existingTravel->id}");
+            return $revalidatedTravel;
+        }
+
+        Log::info("Existing trip {$existingTravel->id} failed revalidation, creating new trip");
+    }
+
+    // Create new travel based on type
+    if ($request->client_id) {
+        return $this->handleClientTravel($request, $travelData, $lang);
+    } elseif ($request->user_id) {
+        $travelData['user_id'] = $request->user_id;
+        return $this->travelController->createAssignedTravel($travelData);
+    }
+
+    return null;
+}
 
     /**
      * Handle client travel with payment
@@ -361,21 +449,93 @@ private function handleClientTravel(Request $request, array $travelData, $lang)
         return view('/admin/transport/drivers/passengers', compact('passengers'));
     }
 
-    /**
-     * Show passenger data with details (web)
-     */
-    public function showPassengesrDataWithDetails($id)
-    {
-        $passenger = Passenger::where('id', $id)
-            ->with('appUser.vehicle', 'list', 'appUser.company')
-            ->first();
+/**
+ * Show passenger data with details (web)
+ */
+public function showPassengesrDataWithDetails($id)
+{
+    $passenger = Passenger::where('id', $id)
+        ->with('appUser.vehicle', 'list', 'appUser.company')
+        ->first();
 
-        if (!$passenger) {
-            abort(404, 'الركاب غير موجودين');
+    if (!$passenger) {
+        abort(404, 'الركاب غير موجودين');
+    }
+
+    // ✅ ONLY CHANGE: Pass $isMobilePDF = false
+    $isMobilePDF = false;
+
+    return view('/admin/transport/drivers/passengersPDF', compact('passenger', 'isMobilePDF'));
+}
+
+/**
+ * Download passenger PDF for Mobile App (Direct Download)
+ */
+/**
+ * Download passenger PDF for Mobile App (Direct Download)
+ */
+public function downloadPassengerPDFMobile($id)
+{
+    $passenger = Passenger::where('id', $id)
+        ->with('appUser.vehicle', 'list', 'appUser.company')
+        ->first();
+
+    if (!$passenger) {
+        return response()->json(['success' => false, 'message' => 'Passenger not found'], 404);
+    }
+
+    try {
+        // ✅ MPDF SUBFOLDER KE LIYE DIRECTORY BANAO
+        $tempDir = '/var/www/project/storage/app/mpdf_temp/mpdf';
+        if (!is_dir($tempDir)) {
+            mkdir($tempDir, 0755, true);
         }
 
-        return view('/admin/transport/drivers/passengersPDF', compact('passenger'));
+        $isMobilePDF = true;
+        $pageTitle = 'كشف الركاب_' . $id;
+
+        // ✅ View ko render karo
+        $html = view('/admin/transport/drivers/passengersPDF', 
+            compact('passenger', 'isMobilePDF', 'pageTitle')
+        )->render();
+
+        // ✅ Remove unwanted elements
+        $html = preg_replace('/\{\{--.*?--\}\}/s', '', $html);
+        $html = preg_replace('/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/is', '', $html);
+        $html = str_replace('onload="window.print();"', '', $html);
+        $html = preg_replace('/@page\s*\{[^}]*\}/', '', $html);
+        $html = preg_replace('/<\?xml[^?]*\?>/i', '', $html);
+
+        $html = str_replace('display: table-cell;', 'display: block;', $html);
+        $html = str_replace('display: table;', 'display: block;', $html);
+
+        // ✅ mPDF config WITH TEMP DIR
+        $mpdf = new \Mpdf\Mpdf([
+            'mode' => 'utf-8',
+            'format' => 'A4',
+            'default_font' => 'dejavusans',
+            'default_font_size' => 10,
+            'margin_left' => 10,
+            'margin_right' => 10,
+            'margin_top' => 10,
+            'margin_bottom' => 10,
+            'orientation' => 'P',
+            'tempDir' => '/var/www/project/storage/app/mpdf_temp', // ✅ PARENT DIRECTORY
+        ]);
+
+        $mpdf->SetDirectionality('rtl');
+        $mpdf->WriteHTML($html);
+
+        return $mpdf->Output('PassengerId_' . $id . '.pdf', 'D');
+
+    } catch (\Exception $e) {
+        Log::error('PDF Generation Error: ' . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'message' => 'PDF generation failed: ' . $e->getMessage(),
+        ], 500);
     }
+}
 
     /**
      * Store new passengers (from admin panel)
@@ -652,5 +812,63 @@ private function validateReturnTime($departureDate, $departureTime, $returnDate,
         throw new \Exception($messages[$lang]['return_after_departure'] ?? $messages['en']['return_after_departure']);
     }
 }
+
+
+/**
+ *  Validate driver vehicle matches trip requirements
+ */
+// private function validateDriverVehicle($driverId, $passengers, $transportType, $lang = 'ar')
+// {
+//     $vehicle = \App\Models\Vehicle::where('user_id', $driverId)->first();
     
+//     if (!$vehicle) {
+//         $messages = [
+//             'ar' => 'لم يتم العثور على سيارة للسائق.',
+//             'en' => 'No vehicle found for driver.',
+//             'ur' => 'ڈرائیور کے لیے گاڑی نہیں ملی۔'
+//         ];
+//         throw new \Exception($messages[$lang] ?? $messages['ar']);
+//     }
+    
+//     // ✅ Type mapping (English → Arabic)
+//     $typeMapping = [
+//         'limousine' => 'ليموزين',
+//         'private_car' => 'سيارة خاصة',
+//         'bus' => 'حافلة',
+//         'van' => 'فان',
+//         'taxi' => 'تاكسي',
+//         'minibus' => 'ميني باص'
+//     ];
+    
+//     $arabicType = $typeMapping[strtolower($transportType)] ?? $transportType;
+    
+//     // Check type match (supports both English and Arabic)
+//     $typeMatches = ($vehicle->car_type === $transportType) || 
+//                    ($vehicle->car_type === $arabicType);
+    
+//     if (!$typeMatches) {
+//         $messages = [
+//             'ar' => 'نوع سيارة السائق (' . $vehicle->car_type . ') لا يطابق نوع الرحلة المطلوب (' . $arabicType . '). لا يمكن إنشاء الرحلة.',
+//             'en' => 'Driver vehicle type (' . $vehicle->car_type . ') does not match required trip type (' . $transportType . '). Cannot create trip.',
+//             'ur' => 'ڈرائیور گاڑی کی قسم (' . $vehicle->car_type . ') مطلوبہ سفر کی قسم (' . $arabicType . ') سے میل نہیں کھاتی۔ سفر نہیں بنایا جا سکتا۔'
+//         ];
+//         throw new \Exception($messages[$lang] ?? $messages['ar']);
+//     }
+    
+//     // Check capacity (string to int conversion)
+//     $vehicleCapacity = (int) $vehicle->number_of_passengers;
+//     $requiredPassengers = (int) $passengers;
+    
+//     if ($vehicleCapacity < $requiredPassengers) {
+//         $messages = [
+//             'ar' => 'سعة سيارة السائق (' . $vehicleCapacity . ' مقاعد) غير كافية للرحلة (' . $requiredPassengers . ' ركاب مطلوبين). لا يمكن إنشاء الرحلة.',
+//             'en' => 'Driver vehicle capacity (' . $vehicleCapacity . ' seats) is insufficient for this trip (' . $requiredPassengers . ' passengers required). Cannot create trip.',
+//             'ur' => 'ڈرائیور گاڑی کی گنجائش (' . $vehicleCapacity . ' سیٹیں) اس سفر کے لیے ناکافی ہے (' . $requiredPassengers . ' مسافر درکار)۔ سفر نہیں بنایا جا سکتا۔'
+//         ];
+//         throw new \Exception($messages[$lang] ?? $messages['ar']);
+//     }
+    
+//     return true;
+// }
+
 }

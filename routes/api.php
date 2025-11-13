@@ -77,6 +77,8 @@
         Route::delete('/deletePassenger/{id}', [PassengerController::class, 'deletePassenger']);
         Route::get('/getAll/{driver}', [PassengerController::class, 'getAll']);
         Route::get('/getOne/{passenger}', [PassengerController::class, 'getOne']);
+        // Mobile App - Direct PDF Download (No encryption needed)
+        Route::get('/download/{id}', [PassengerController::class, 'downloadPassengerPDFMobile']);
     });
 
     // ==========================================

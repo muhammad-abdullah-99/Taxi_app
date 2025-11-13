@@ -21,6 +21,7 @@ class Travel extends Model
         'client_id',
         'passengers',
         'between_city_id',
+        'company_type',
         'selected_transport_type',
         'latitude_from',
         'longitude_from',

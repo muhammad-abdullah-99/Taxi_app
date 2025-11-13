@@ -11,6 +11,7 @@
         "laravel/framework": "^11.0",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.9",
+        "mpdf/mpdf": "^8.2",
         "simplesoftwareio/simple-qrcode": "^4.2",
         "spatie/browsershot": "^5.0",
         "taqnyat/php": "^1.0",

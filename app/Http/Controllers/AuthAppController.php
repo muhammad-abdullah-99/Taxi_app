@@ -264,6 +264,7 @@ public function verifyOtp(Request $request)
     try {
         $user = AppUser::where('mobile', $request->mobile)
             ->where('name', '!=', 'guest')
+            ->with(['company', 'vehicle'])
             ->first();
 
         if (!$user) {
@@ -310,7 +311,15 @@ public function verifyOtp(Request $request)
 
         $token = auth()->guard('api')->login($user);
 
-        return $this->createNewToken($token);
+        // return $this->createNewToken($token);
+        return response()->json([
+            'driver' => $user, // ✅ Now includes company & vehicle relationships
+            'company' => $user->company, // ✅ ADDED
+            'vehicle' => $user->vehicle, // ✅ ADDED
+            'access_token' => $token,
+            'token_type' => 'bearer',
+            'expires_in' => auth()->guard('api')->factory()->getTTL() * 60000,
+        ]);
 
     } catch (\Exception $e) {
         Log::error('OTP Verification Error', [

@@ -17,12 +17,9 @@ class BetweenCity extends Model
 
     // Transport types with Arabic names
     const TRANSPORT_TYPES = [
-        'limousine' => 'ليموزين',
+        'limousine_taxi' => 'تاكسي ليموزين',
         'private_car' => 'سيارة خاصة', 
-        'bus' => 'حافلة',
-        'van' => 'فان',
-        'taxi' => 'تاكسي',
-        'minibus' => 'ميني باص'
+        'bus' => 'حافلة'
     ];
 
     // Accessor for Arabic names

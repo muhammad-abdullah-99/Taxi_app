@@ -22,24 +22,21 @@ dashboard
 <!-- breadcrumb -->
 @endsection
 @section('content')
-
-<!-- row -->
 <div class="row mb-30 d-flex justify-content-center">
+    @php
+        // ✅ FIXED: Use English keys with Arabic display
+        $companyTypesUI = [
+            'publicFare' => ['كباتن الأجرة العامة', 'fa-taxi', 'text-success'],
+            'privateFare' => ['كباتن الأجرة الخاصة', 'fa-car', 'text-info'],
+            'specializedTransport' => ['كباتن النقل المتخصص', 'fa-bus', 'text-success'],
+            'privateCarsResidents' => ['كباتن السيارات الخاصة للمقيمين', 'fa-user', 'text-primary'],
+            'privateCarsCitizens' => ['كباتن السيارات الخاصة للمواطنين', 'fa-flag', 'text-warning'],
+        ];
+    @endphp
 
-    <!-- السائقين الحاليين -->
-
-  @php
-    $companyTypes = [
-        'الاجرة العامة' => ['كباتن الأجرة العامة', 'fa-taxi', 'text-success'],
-        'الاجرة الخاصة' => ['كباتن الأجرة الخاصة', 'fa-car', 'text-info'],
-        'النقل المتخصص' => ['كباتن النقل المتخصص', 'fa-bus', 'text-success'],
-        'السيارات الخاصة للمقيمين' => ['كباتن السيارات الخاصة للمقيمين', 'fa-user', 'text-primary'],
-        'السيارات الخاصة للمواطنين' => ['كباتن السيارات الخاصة للمواطنين', 'fa-flag', 'text-warning'],
-    ];
-@endphp
-
-    @foreach($companyTypes as $type => [$title, $icon, $color])
-        <a href="{{ route('showCurrentDrivers', $type) }}" class="col-md-3 mb-3 text-decoration-none d-flex justify-content-center">
+    {{-- ✅ Loop sends English keys to route --}}
+    @foreach($companyTypesUI as $typeKey => [$title, $icon, $color])
+        <a href="{{ route('showCurrentDrivers', $typeKey) }}" class="col-md-3 mb-3 text-decoration-none d-flex justify-content-center">
             <div class="card text-center shadow-lg" style="background-color: #2c3e50; border-radius: 20px; width: 220px; height: 160px;">
                 <div class="card-body d-flex flex-column align-items-center justify-content-center p-2">
                     <i class="fa {{ $icon }} fa-4x {{ $color }} mb-3"></i>
@@ -49,11 +46,7 @@ dashboard
         </a>
     @endforeach
 
-
-
-
- 
-    <!-- السائقين بانتظار الموافقة -->
+    {{-- Waiting Drivers --}}
     <a href="{{route('showWaitingDrivers')}}" class="col-md-3 mb-3 text-decoration-none d-flex justify-content-center">
         <div class="card text-center shadow-lg" style="background-color: #2c3e50; border-radius: 20px; width: 220px; height: 160px;">
             <div class="card-body d-flex flex-column align-items-center justify-content-center p-2">
@@ -63,7 +56,7 @@ dashboard
         </div>
     </a>
 
-    <!-- الأرشيف -->
+    {{-- Archived Drivers --}}
     <a href="{{route('showarchiveDrivers')}}" class="col-md-3 mb-3 text-decoration-none d-flex justify-content-center">
         <div class="card text-center shadow-lg" style="background-color: #2c3e50; border-radius: 20px; width: 220px; height: 160px;">
             <div class="card-body d-flex flex-column align-items-center justify-content-center p-2">
@@ -72,10 +65,7 @@ dashboard
             </div>
         </div>
     </a>
-
 </div>
-<!-- row closed -->
-
 @endsection
 @section('js')
 @endsection
