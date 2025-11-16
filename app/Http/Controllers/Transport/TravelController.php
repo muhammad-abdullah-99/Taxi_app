@@ -38,18 +38,44 @@ class TravelController extends Controller
         return \Carbon\Carbon::now('Asia/Riyadh');
     }
 
-    public function travels(Request $request)
-    {
-        $status = $request->get('status');
-        $query = Travel::with('appUser')->whereHas('appUser');
+    // public function travels(Request $request)
+    // {
+    //     $status = $request->get('status');
+    //     $query = Travel::with('appUser')->whereHas('appUser');
 
-        if ($status) {
-            $query->where('status', $status);
-        }
+    //     if ($status) {
+    //         $query->where('status', $status);
+    //     }
 
-        $travels = $query->get();
-        return view('admin.transport.travel.travel', compact('travels', 'status'));
+    //     $travels = $query->get();
+    //     return view('admin.transport.travel.travel', compact('travels', 'status'));
+    // }
+
+
+public function travels(Request $request)
+{
+    $status = $request->get('status');
+    
+    // ✅ Arabic to English status mapping
+    $statusMap = [
+        'انتظار' => 'Waiting',
+        'جارية' => 'InProgress', 
+        'مكتملة' => 'Completed',
+        'منتهية' => 'Finished'
+    ];
+    
+    // ✅ CHANGED: Show ALL travels (driver assigned or not)
+    $query = Travel::with(['appUser', 'client', 'between_city']);
+    
+    if ($status) {
+        $dbStatus = $statusMap[$status] ?? $status;
+        $query->where('status', $dbStatus);
     }
+
+    $travels = $query->orderBy('created_at', 'desc')->get();
+    
+    return view('admin.transport.travel.travel', compact('travels', 'status'));
+}
 
     public function allUserTravell($user, $status)
     {

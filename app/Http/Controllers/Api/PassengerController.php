@@ -54,21 +54,24 @@ class PassengerController extends Controller
             $travel = null;
 
             // 3. Validate BetweenCity (if needed)
-            try {
-                $betweenCityId = $this->travelController->validateBetweenCity(
-                    $request->from,
-                    $request->to,
-                    $request->between_city_id,
-                    $lang
-                );
-            } catch (\Exception $e) {
-                DB::rollBack();
-                return response()->json([
-                    'success' => false,
-                    'message' => $e->getMessage(),
-                    'error_code' => 'CITIES_NOT_AVAILABLE'
-                ], 400);
-            }
+            // try {
+            //     $betweenCityId = $this->travelController->validateBetweenCity(
+            //         $request->from,
+            //         $request->to,
+            //         $request->between_city_id,
+            //         $lang
+            //     );
+            // } catch (\Exception $e) {
+            //     DB::rollBack();
+            //     return response()->json([
+            //         'success' => false,
+            //         'message' => $e->getMessage(),
+            //         'error_code' => 'CITIES_NOT_AVAILABLE'
+            //     ], 400);
+            // }
+
+            // ✅ USE REQUEST VALUE DIRECTLY - No validation
+            $betweenCityId = $request->between_city_id ?? null;            
 
             // 4. Create Travel (if date provided) with ALL validations
             if ($request->date) {
