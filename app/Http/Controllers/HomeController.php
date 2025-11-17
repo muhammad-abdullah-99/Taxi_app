@@ -555,7 +555,7 @@ $deactive_documents = $total_documents - $active_documents ;
 // NEW CODE
         // ✅ FIX: Use English keys from BetweenCityController
         $companyTypes = BetweenCityController::getAllKeys(); // Returns: ['publicFare', 'privateFare', ...]
-
+        $companyTypesData = BetweenCityController::COMPANY_TYPES;
         $data = [];
 
         foreach ($companyTypes as $type) {
@@ -848,7 +848,7 @@ $deactive_documents = $total_documents - $active_documents ;
             'expiringSoon',
             'data', 
             'companyTypes',
-
+            'companyTypesData',
 
         ));
     }

@@ -10,53 +10,60 @@
             <div class="row">
 
                 @foreach($companyTypes as $type)
-                <div class="col-md-4 mb-3">
-                    <div class="p-3 rounded bg-dark h-100">
-                        <h5 class="fw-bold text-white mb-3 text-center">
-                            🚖 كباتن {{ $type }}
-                        </h5>
+                    {{-- باقی تمام company types کو comment کر دیا، صرف specializedTransport دکھائی دے گی --}}
+                    @if($type == 'specializedTransport')
+                        <div class="col-md-6 mb-3">
+                            <div class="p-3 rounded bg-dark h-100">
+                                <h5 class="fw-bold text-white mb-3 text-center">
+                                    🚖 كباتن {{ $companyTypesData[$type]['name_ar'] ?? $type }}
+                                </h5>
 
-                        {{-- نشطين --}}
-                        <div class="d-flex justify-content-between align-items-center px-3 py-1 rounded bg-secondary mb-2"
-                            data-toggle="modal" data-target="#activeCaptainsModal{{ $loop->index }}" style="cursor: pointer;">
-                            <span><i class="fa fa-check-circle text-info me-1"></i> النشطين</span>
-                            <span>{{ $data[$type]['active']->count() }}</span>
-                        </div>
-                        @include('captainsModal', [
-                        'id' => 'activeCaptainsModal'.$loop->index,
-                        'title' => 'الكباتن النشطين - '.$type,
-                        'captains' => $data[$type]['active']
-                        ])
+                                {{-- نشطین --}}
+                                <div class="d-flex justify-content-between align-items-center px-3 py-1 rounded bg-secondary mb-2"
+                                    data-toggle="modal" data-target="#activeCaptainsModal{{ $loop->index }}" style="cursor: pointer;">
+                                    <span><i class="fa fa-check-circle text-info me-1"></i> النشطین</span>
+                                    <span>{{ $data[$type]['active']->count() }}</span>
+                                </div>
+                                @include('captainsModal', [
+                                'id' => 'activeCaptainsModal'.$loop->index,
+                                'title' => 'الكباتن النشطين - ' . ($companyTypesData[$type]['name_ar'] ?? $type),
+                                'captains' => $data[$type]['active']
+                                ])
 
-                        {{-- قيد الانتظار --}}
-                        <div class="d-flex justify-content-between align-items-center px-3 py-1 rounded bg-secondary mb-2"
-                            data-toggle="modal" data-target="#pendingCaptainsModal{{ $loop->index }}" style="cursor: pointer;">
-                            <span><i class="fa fa-clock-o text-warning me-1"></i> المعلقين</span>
-                            <span>{{ $data[$type]['pending']->count() }}</span>
-                        </div>
-                        @include('captainsModal', [
-                        'id' => 'pendingCaptainsModal'.$loop->index,
-                        'title' => 'الكباتن المعلقين - '.$type,
-                        'captains' => $data[$type]['pending']
-                        ])
+                                {{-- قید الانتظار --}}
+                                <div class="d-flex justify-content-between align-items-center px-3 py-1 rounded bg-secondary mb-2"
+                                    data-toggle="modal" data-target="#pendingCaptainsModal{{ $loop->index }}" style="cursor: pointer;">
+                                    <span><i class="fa fa-clock-o text-warning me-1"></i> المعلقین</span>
+                                    <span>{{ $data[$type]['pending']->count() }}</span>
+                                </div>
+                                @include('captainsModal', [
+                                'id' => 'pendingCaptainsModal'.$loop->index,
+                                'title' => 'الكباتن المعلقين - ' . ($companyTypesData[$type]['name_ar'] ?? $type),
+                                'captains' => $data[$type]['pending']
+                                ])
 
-                        {{-- مؤرشفين --}}
-                        <div class="d-flex justify-content-between align-items-center px-3 py-1 rounded bg-secondary"
-                            data-toggle="modal" data-target="#archivedCaptainsModal{{ $loop->index }}" style="cursor: pointer;">
-                            <span><i class="fa fa-archive text-danger me-1"></i> المؤرشفين</span>
-                            <span>{{ $data[$type]['archived']->count() }}</span>
+                                {{-- مؤرشفین --}}
+                                <div class="d-flex justify-content-between align-items-center px-3 py-1 rounded bg-secondary"
+                                    data-toggle="modal" data-target="#archivedCaptainsModal{{ $loop->index }}" style="cursor: pointer;">
+                                    <span><i class="fa fa-archive text-danger me-1"></i> المؤرشفین</span>
+                                    <span>{{ $data[$type]['archived']->count() }}</span>
+                                </div>
+                                @include('captainsModal', [
+                                'id' => 'archivedCaptainsModal'.$loop->index,
+                                'title' => 'الكباتن المؤرشفين - ' . ($companyTypesData[$type]['name_ar'] ?? $type),
+                                'captains' => $data[$type]['archived']
+                                ])
+                            </div>
                         </div>
-                        @include('captainsModal', [
-                        'id' => 'archivedCaptainsModal'.$loop->index,
-                        'title' => 'الكباتن المؤرشفين - '.$type,
-                        'captains' => $data[$type]['archived']
-                        ])
-                    </div>
-                </div>
+                    @endif
+                    {{-- 
+                    اگر آپ کو دوسری company types بھی دکھانی ہوں تو اوپر کی @if condition میں تبدیلی کریں
+                    مثال: @if($type == 'specializedTransport' || $type == 'اور کوئی type')
+                    --}}
                 @endforeach
 
                 <!-- إجمالي الكباتن -->
-<div class="col-md-4 mb-3">
+<div class="col-md-6 mb-3">
     <div class="p-3 rounded bg-dark h-100">
         <h5 class="fw-bold text-white mb-3 text-center">
             <i class="fa fa-user-plus me-2"></i> إجمالي كشف الركاب

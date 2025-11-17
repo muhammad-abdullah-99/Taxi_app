@@ -26,11 +26,11 @@ dashboard
     @php
         // ✅ FIXED: Use English keys with Arabic display
         $companyTypesUI = [
-            'publicFare' => ['كباتن الأجرة العامة', 'fa-taxi', 'text-success'],
-            'privateFare' => ['كباتن الأجرة الخاصة', 'fa-car', 'text-info'],
+            // 'publicFare' => ['كباتن الأجرة العامة', 'fa-taxi', 'text-success'],
+            // 'privateFare' => ['كباتن الأجرة الخاصة', 'fa-car', 'text-info'],
             'specializedTransport' => ['كباتن النقل المتخصص', 'fa-bus', 'text-success'],
-            'privateCarsResidents' => ['كباتن السيارات الخاصة للمقيمين', 'fa-user', 'text-primary'],
-            'privateCarsCitizens' => ['كباتن السيارات الخاصة للمواطنين', 'fa-flag', 'text-warning'],
+            // 'privateCarsResidents' => ['كباتن السيارات الخاصة للمقيمين', 'fa-user', 'text-primary'],
+            // 'privateCarsCitizens' => ['كباتن السيارات الخاصة للمواطنين', 'fa-flag', 'text-warning'],
         ];
     @endphp
 
