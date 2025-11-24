@@ -125,7 +125,9 @@ function createSubscription(Request $request)
             ], 400);
         }
 
-        $wallet = Wallet::where('user_id', $request->user_id)->first();
+        // $wallet = Wallet::where('user_id', $request->user_id)->first();
+        $wallet = Wallet::where('user_id', $request->user_id)->lockForUpdate()->first();        
+
         if (!$wallet) {
             return response()->json(['error' => $lang == 'ar' ? 'المحفظة غير موجودة' : 'Wallet not found'], 400);
         }
@@ -134,13 +136,41 @@ function createSubscription(Request $request)
             return response()->json(['error' => $lang == 'ar' ? 'الرصيد غير كافٍ' : 'Insufficient balance'], 400);
         }
 
+        // ✅ DEDUCT FROM DRIVER
         $wallet->current_balance -= $package->cost;
+        $wallet->daily_spent += $package->cost;
         $wallet->save();
 
         $wallet->details()->create([
             'name' => 'صرف',
-            'amount' => $package->cost,
+            'amount' => -$package->cost, // ✅ NEGATIVE = outgoing
             'details' => 'شحن باقة ' . $package->name . ' ' . $package->type,
+            'transaction_date' => now()->toDateString()
+        ]);
+
+        // ✅ ADD TO PACKAGE WALLET (USER_ID = 0)
+        // $packageWallet = Wallet::firstOrCreate(
+        //     ['user_id' => 0],
+        //     ['current_balance' => 0, 'total_recharge' => 0]
+        // );
+        $packageWallet = Wallet::where('user_id', 0)->lockForUpdate()->first();
+        if (!$packageWallet) {
+            $packageWallet = Wallet::create([
+                'user_id' => 0,
+                'current_balance' => 0,
+                'total_recharge' => 0
+            ]);
+        }        
+        
+        $packageWallet->current_balance += $package->cost;
+        $packageWallet->save();
+
+        \App\Models\WalletDetail::create([
+            'wallet_id' => $packageWallet->id,
+            'name' => 'Package Revenue',
+            'amount' => $package->cost,
+            'details' => 'اشتراك باقة من سائق (ID: ' . $request->user_id . ')',
+            'transaction_date' => now()->toDateString()
         ]);
 
         $expireAt = Carbon::now()->addDays($package->days)->toDateString();
@@ -176,10 +206,12 @@ function createSubscription(Request $request)
         $detail->increment('amount', $package->cost);
 
         DB::commit();
+        
         return response()->json([
             'message' => $lang == 'ar' ? 'تم إنشاء/تحديث الاشتراك بنجاح' : 'Subscription created/updated successfully',
             'expire_at' => $expireAt
         ], 201);
+    
     } catch (\Exception $e) {
         DB::rollBack();
         return response()->json([

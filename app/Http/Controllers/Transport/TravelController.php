@@ -1036,10 +1036,10 @@ public function cancelTravelByPassenger($travelId, $passengerId, $lang = 'en')
     }
 }
 
-    /**
-     * Confirm order (by client or driver)
-     */
-public function confirmOrder($travelId, $type, $lang = 'ar')  // ✅ LANG PARAMETER ADD KARO
+/**
+ * Confirm order - Creates driver payment record for admin approval
+ */
+public function confirmOrder($travelId, $type, $lang = 'ar')
 {
     if (!in_array($type, ['client', 'driver'])) {
         throw new \Exception('Invalid confirmation type');
@@ -1057,19 +1057,19 @@ public function confirmOrder($travelId, $type, $lang = 'ar')  // ✅ LANG PARAME
         if ($stationWallet->payment_status === 'released') {
             DB::rollBack();
             return [
-                'success' => false,
+                'success' => false, 
                 'message' => 'Payment already released to driver.'
             ];
         }
 
         if ($travel->status !== 'Completed') {
             DB::rollBack();
-            throw new \Exception('Trip must be completed first by driver. Driver needs to end the trip before payment can be released.');
+            throw new \Exception('Trip must be completed first by driver.');
         }
 
         if ($type !== 'client') {
             DB::rollBack();
-            throw new \Exception('Only passenger can confirm payment release after trip completion.');
+            throw new \Exception('Only passenger can confirm payment release.');
         }
 
         if ($type === 'client') {
@@ -1083,21 +1083,56 @@ public function confirmOrder($travelId, $type, $lang = 'ar')  // ✅ LANG PARAME
         
         $stationWallet->save();
 
-        // ✅ NOW BOTH ARE CONFIRMED + TRIP COMPLETED = RELEASE PAYMENT
+        // ✅ BOTH CONFIRMED + TRIP COMPLETED = CREATE PAYMENT RECORD
         if ($stationWallet->client_status === 'confirmed' && 
             $stationWallet->driver_status === 'confirmed' &&
             $travel->status === 'Completed') {
             
             $driverId = $travel->user_id;
             
-            $driverWallet = Wallet::firstOrCreate(
-                ['user_id' => $driverId],
-                ['current_balance' => 0, 'total_recharge' => 0]
-            );
+            // Calculate amounts
+            $operatingFee = 50;
+            $totalAmount = $stationWallet->amount;
+            $driverAmount = $totalAmount - $operatingFee;
 
-            // ✅ ADD THIS: CHECK IF WALLET DETAIL ALREADY EXISTS
+            // ✅ CREATE DRIVER PAYMENT RECORD (PENDING ADMIN APPROVAL)
+            $existingPayment = \App\Models\DriverPayment::where('travel_id', $travelId)->first();
+            
+            if (!$existingPayment) {
+                \App\Models\DriverPayment::create([
+                    'payment_id' => \App\Models\DriverPayment::generatePaymentId(), // ✅ Use static method
+                    'travel_id' => $travelId,
+                    'driver_id' => $driverId,
+                    'passenger_id' => $travel->client_id,
+                    'trip_amount' => $totalAmount,
+                    'operating_fee' => $operatingFee,
+                    'driver_amount' => $driverAmount,
+                    'status' => 'pending',
+                    'trip_completed_at' => $travel->ended_at ?? now()
+                ]);
+
+                \Log::info("✅ Driver payment record created", [
+                    'travel_id' => $travelId,
+                    'driver_id' => $driverId,
+                    'driver_amount' => $driverAmount,
+                    'operating_fee' => $operatingFee
+                ]);
+            }
+
+            // ✅ CREATE WALLET DETAILS FOR FLUTTER APP (DISPLAY ONLY)
+            $driverWallet = Wallet::where('user_id', $driverId)->lockForUpdate()->first();
+            if (!$driverWallet) {
+                $driverWallet = Wallet::create([
+                    'user_id' => $driverId,
+                    'current_balance' => 0,
+                    'total_recharge' => 0
+                ]);
+            }
+
+            // ✅ CHECK IF WALLET DETAIL ALREADY EXISTS
             $exists = WalletDetail::where('travel_id', $travelId)
                 ->where('wallet_id', $driverWallet->id)
+                ->where('name', 'LIKE', '%استلام%')
                 ->exists();
             
             if (!$exists) {
@@ -1108,7 +1143,7 @@ public function confirmOrder($travelId, $type, $lang = 'ar')  // ✅ LANG PARAME
                 // ✅ MULTI-LANGUAGE SUPPORT
                 $nameTranslations = [
                     'ar' => 'استلام الدفع',
-                    'en' => 'Payment Received',
+                    'en' => 'Payment Received', 
                     'ur' => 'ادائیگی موصول ہوئی'
                 ];
                 
@@ -1118,26 +1153,63 @@ public function confirmOrder($travelId, $type, $lang = 'ar')  // ✅ LANG PARAME
                     'ur' => $travel->from . ' سے ' . $travel->to . ' تک سفر'
                 ];
                 
-                // ✅ CREATE WALLET DETAIL FOR DRIVER
+                $feeTranslations = [
+                    'ar' => 'رسوم تشغيل',
+                    'en' => 'Operating Fee',
+                    'ur' => 'آپریٹنگ فیس'
+                ];
+
+                // ✅ DRIVER RECEIVES NET AMOUNT (Total - Fee) - FOR DISPLAY ONLY
                 WalletDetail::create([
                     'wallet_id' => $driverWallet->id,
                     'travel_id' => $travelId,
                     'name' => $nameTranslations[$driverLang] ?? $nameTranslations['ar'],
-                    'amount' => $stationWallet->amount,
+                    'amount' => $driverAmount,
                     'details' => $detailsTranslations[$driverLang] ?? $detailsTranslations['ar'],
+                    'transaction_date' => $this->getSaudiTime()
+                ]);                
+
+                // ✅ CREATE WALLET DETAIL FOR OPERATING FEE
+                WalletDetail::create([
+                    'wallet_id' => $driverWallet->id,
+                    'travel_id' => $travelId,
+                    'name' => $feeTranslations[$driverLang] ?? $feeTranslations['ar'],
+                    'amount' => -$operatingFee,
+                    'details' => $feeTranslations[$driverLang] ?? $feeTranslations['ar'],
                     'transaction_date' => $this->getSaudiTime()
                 ]);
                 
-                Log::info("Driver WalletDetail created for travel_id: {$travelId}, driver: {$driverId}, lang: {$driverLang}");
+                \Log::info("✅ WalletDetail created for Flutter app", [
+                    'travel_id' => $travelId, 
+                    'driver_id' => $driverId
+                ]);
             }
 
-            // ✅ UPDATE WALLET BALANCE
-            $driverWallet->current_balance += $stationWallet->amount;
-            $driverWallet->save();
+            // ✅ SYSTEM WALLET (OPERATING FEE) - ACTUAL MONEY
+            $systemWallet = Wallet::where('user_id', 0)->lockForUpdate()->first();
+            if (!$systemWallet) {
+                $systemWallet = Wallet::create([
+                    'user_id' => 0,
+                    'current_balance' => 0,
+                    'total_recharge' => 0
+                ]);
+            }
 
-            // ✅ UPDATE STATUSES
+            $systemWallet->current_balance += $operatingFee;
+            $systemWallet->save();
+
+            WalletDetail::create([
+                'wallet_id' => $systemWallet->id,
+                'travel_id' => $travelId,
+                'name' => 'Operating Fee Revenue',
+                'amount' => $operatingFee,
+                'details' => 'رسوم تشغيل من رحلة',
+                'transaction_date' => $this->getSaudiTime()
+            ]);
+
+            // ✅ UPDATE STATUSES - Use existing station_wallet
             $travel->update(['status' => 'Finished']);
-            $stationWallet->update(['payment_status' => 'released']);
+            $stationWallet->update(['payment_status' => 'pending_admin_approval']); // ✅ Changed from 'released'
 
             DB::commit();
 
@@ -1145,11 +1217,14 @@ public function confirmOrder($travelId, $type, $lang = 'ar')  // ✅ LANG PARAME
 
             return [
                 'success' => true,
-                'message' => 'Payment released successfully! Ride is now finished.',
+                'message' => 'Payment confirmed! Amount will be transferred to your bank account.',
                 'data' => [
-                    'amount_transferred' => $stationWallet->amount,
+                    'total_amount' => $totalAmount,
+                    'operating_fee' => $operatingFee,
+                    'driver_amount' => $driverAmount,
                     'driver_id' => $driverId,
                     'travel_status' => 'Finished',
+                    'payment_status' => 'pending_admin_approval',
                     'trip_duration_minutes' => $duration
                 ]
             ];
@@ -1167,6 +1242,12 @@ public function confirmOrder($travelId, $type, $lang = 'ar')  // ✅ LANG PARAME
         DB::rollBack();
         throw $e;
     }
+}
+
+// ✅ ADD THIS HELPER METHOD TO TravelController
+private function generatePaymentId()
+{
+    return 'PAY-' . strtoupper(uniqid()) . '-' . time();
 }
 
     /**

@@ -27,6 +27,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MoneyCenterController;
 use App\Http\Controllers\PrintsController;
+use App\Http\Controllers\Transport\DriverPaymentController;
 use App\Http\Controllers\Restaurant\RestaurantController;
 use App\Http\Controllers\Transport\BetweenCityController;
 use App\Http\Controllers\Transport\BoxController as TransportBoxController;
@@ -242,7 +243,18 @@ Route::prefix('admin')->group(function () {
         Route::get('show/archeived/company', [DriversController::class, 'archivedCompanies'])->name('archivedCompanies');
         //
         Route::post('/drivers/send-message', [MessageController::class, 'sendDriverMessage'])->name('sendDriverMessage');
+        //Wallet Routes For Admin
+            Route::get('/pending', [DriverPaymentController::class, 'pendingPayments'])->name('dashboard.pending');
+            Route::get('/history', [DriverPaymentController::class, 'paymentHistory'])->name('dashboard.history');
+            Route::post('/{paymentId}/mark-paid', [DriverPaymentController::class, 'markAsPaid'])->name('dashboard.mark-paid');
+            Route::post('/{paymentId}/cancel', [DriverPaymentController::class, 'cancelPayment'])->name('dashboard.cancel');
+
     });
+        
+        Route::prefix('admin/driver-payments')->name('driver.payments.')->group(function () {
+
+        });
+
 
     route::group(['prefix' => 'dashboard/transport/passengers'], function () {
         Route::get('show/all/passengers/{id?}', [PassengerController::class, 'showAllPassengers'])->name('showAllPassengers');

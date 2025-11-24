@@ -204,6 +204,21 @@
                             <div class="clearfix"></div>
                         </a>
                     </li>
+                    <!-- Add this after "الدعم الفني" section -->
+                    <li>
+                        <a href="{{ route('dashboard.pending') }}">
+                            <div class="pull-left" style="font-size: 18px;">
+                                <i class="fa fa-money" style="font-size: 18px; font-weight: bold;"></i>
+                                <span class="right-nav-text">طلبات السحب</span>
+                            </div>
+                            @if(\App\Models\DriverPayment::where('status', 'pending')->count() > 0)
+                                <span class="badge badge-warning pull-right">
+                                    {{ \App\Models\DriverPayment::where('status', 'pending')->count() }}
+                                </span>
+                            @endif
+                            <div class="clearfix"></div>
+                        </a>
+                    </li>
                     <li>
                         <a href="{{ route('support.app.index') }}">
                             <div class="pull-left" style="font-size: 18px;">

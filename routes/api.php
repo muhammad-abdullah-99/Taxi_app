@@ -8,6 +8,7 @@
     use App\Http\Controllers\Api\SubCategoryController;
     use App\Http\Controllers\Api\SubController;
     use App\Http\Controllers\Api\WalletController;
+    use App\Http\Controllers\Api\PaymentCardController;
     use App\Http\Controllers\AuthAppController;
     use App\Http\Controllers\AuthController;
     use App\Http\Controllers\AuthOtpController;
@@ -134,6 +135,14 @@
     Route::group(['prefix' => 'wallets'], function ($router) {
         Route::get('/{id}', [WalletController::class, 'getWallet']);
         Route::post('/{id}', [WalletController::class, 'updateWallet']);
+        
+        // Keep existing routes
+        Route::post('/recharge/online', [WalletController::class, 'chargeOnline']);
+        Route::any('/charge/callback', [WalletController::class, 'chargeCallback']);
+        
+        // ✅ NEW: Secure recharge (optional)
+        Route::post('/recharge/online/secure', [WalletController::class, 'chargeOnlineSecure']);
+        Route::any('/charge/callback/secure', [WalletController::class, 'chargeCallbackSecure']);
     });
 
     // ==========================================
@@ -167,3 +176,15 @@
         Route::post('/close-direct/{ticket}', [SupportController::class, 'closeTicketDirect'])->name('support.closeTicketDirect');
         Route::post('/reopen-ticket/{ticket}', [SupportController::class, 'reopenTicket'])->name('support.reopenTicket');
     });
+
+
+ // ==========================================
+// ✅ NEW: SAVED CARDS ROUTES
+// ===========================================
+Route::group(['prefix' => 'cards'], function ($router) {
+    Route::post('/save', [PaymentCardController::class, 'saveCard']);
+    Route::post('/charge', [PaymentCardController::class, 'chargeWithSavedCard']);
+    Route::get('/list/{user_id}', [PaymentCardController::class, 'getSavedCards']);
+    Route::delete('/{card_id}', [PaymentCardController::class, 'deleteCard']);
+    Route::put('/{card_id}/set-default', [PaymentCardController::class, 'setDefaultCard']);
+});
