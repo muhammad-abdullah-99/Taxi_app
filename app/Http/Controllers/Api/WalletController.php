@@ -56,6 +56,8 @@ class WalletController extends Controller
         $drivers = AppUser::where('user_type', 'Driver')->where('status', 1)->where('name', '!=', 'guest')->get();
         return view('admin.transport.wallet.wallet', compact(['wallets', 'drivers']));
     }
+
+    
     public function walletClient()
     {
         $wallets = Wallet::whereHas('user', function ($query) {
@@ -67,34 +69,9 @@ class WalletController extends Controller
         return view('admin.transport.wallet.client', compact(['wallets', 'drivers']));
     }
 
-
-
-    // public function addBalance(Request $request)
-    // {
-    //     $request->validate([
-    //         'driver_id' => 'required',
-    //         'amount' => 'required|numeric|min:0.01',
-    //     ]);
-
-    //     DB::transaction(function () use ($request) {
-    //         $wallet = Wallet::firstOrCreate(
-    //             ['user_id' => $request->driver_id],
-    //             ['current_balance' => 0]
-    //         );
-
-    //         $wallet->current_balance += $request->amount;
-    //         $wallet->save();
-
-    //         $wallet->details()->create([
-    //             'name' => 'قبض',
-    //             'amount' => $request->amount,
-    //             'details' => 'شحن رصيد ',
-    //         ]);
-    //     });
-
-    //     return redirect()->back()->with('success', 'تمت إضافة الرصيد وتسجيل العملية بنجاح.');
-    // }
-
+// ========================================
+// 🔧 FIX #1: ADD SECURITY TO OLD METHOD
+// ========================================
 public function chargeOnline(Request $request)
 {
     $request->validate([
@@ -107,26 +84,34 @@ public function chargeOnline(Request $request)
         'year' => 'required|string',
     ]);
 
+    // ✅ ADD: Security check
+    $securityService = new \App\Services\PaymentSecurityService();
+    $securityCheck = $securityService->checkWalletSecurity($request->driver_id);
+    
+    if (!$securityCheck['allowed']) {
+        return redirect()->back()->with('error', $securityCheck['reason']);
+    }
+    
+    if (!$securityService->checkDailyLimit($securityCheck['wallet'], $request->amount)) {
+        return redirect()->back()->with('error', 'تجاوزت الحد اليومي للمعاملات');
+    }
+
     $response = Http::withBasicAuth(env('MOYASAR_API_KEY'), '')
         ->post('https://api.moyasar.com/v1/payments', [
             'amount' => $request->amount * 100,
             'currency' => 'SAR',
             'description' => 'شحن رصيد للسائق',
             'callback_url' => url('wallet/charge/callback'),
-
-
-    
             'metadata' => [
                 'driver_id' => $request->driver_id,
-                                'client_type' => 'جهة',
+                'client_type' => 'جهة',
                 'client_id' => Geha::where('name', 'تطبيق روز تاكسي')->value('id'),
                 'type' => 'قبض',
                 'payment_method' => 'بوابة الدفع',
                 'tax' => 'غير خاضع للضريبة',
                 'description' => 'شحن رصيد عبر بوابة ميسر',
                 'date' => now()->toDateString(),
-       
-                        ],
+            ],
             'source' => [
                 'type' => 'creditcard',
                 'name' => $request->name,
@@ -142,10 +127,14 @@ public function chargeOnline(Request $request)
         return redirect($payment['source']['transaction_url']);
     }
 
+    // ✅ ADD: Log failed attempt
+    $securityService->logFailedAttempt($request->driver_id, 'Payment gateway rejected');
     return redirect()->back()->with('error', '❌ فشل إرسال الطلب إلى بوابة الدفع.');
 }
 
-
+// ========================================
+// 🔧 FIX #2: UPDATE DAILY_SPENT IN CALLBACK
+// ========================================
 public function chargeCallback(Request $request)
 {
     $paymentId = $request->get('id');
@@ -170,7 +159,7 @@ public function chargeCallback(Request $request)
 
     DB::transaction(function () use ($meta, $amount) {
         // 1. إنشاء السند
-           $snd = new Snd();
+        $snd = new Snd();
         $snd->type = $meta['type'] ?? 'قبض';
         $snd->payment_method = $meta['payment_method'] ?? 'بوابة الدفع';
         $snd->bank_account = null;
@@ -179,7 +168,7 @@ public function chargeCallback(Request $request)
         $snd->description = $meta['description'] ?? 'دفع عبر بوابة ميسر';
         $snd->date = $meta['date'] ?? now();
         $snd->client_type = $meta['client_type'];
-        $snd->geha_id = $meta['client_id']; // "تطبيق روز تاكسي"
+        $snd->geha_id = $meta['client_id'];
         $snd->save();
 
         // 2. تحديث رصيد المحفظة
@@ -189,7 +178,19 @@ public function chargeCallback(Request $request)
         );
 
         $wallet->current_balance += $amount;
+        // ✅ FIX: INCREMENT DAILY_SPENT
+        $wallet->daily_spent += $amount;
         $wallet->save();
+
+        // ✅ FIX: RESET FAILED ATTEMPTS ON SUCCESS
+        if ($wallet->failed_attempts > 0) {
+            $wallet->update([
+                'failed_attempts' => 0,
+                'is_locked' => false,
+                'locked_at' => null,
+                'locked_reason' => null
+            ]);
+        }
 
         // 3. إضافة تفاصيل المعاملة
         $wallet->details()->create([
@@ -206,7 +207,7 @@ public function chargeCallback(Request $request)
 public function chargeOnlineSecure(Request $request)
 {
     $validator = \Validator::make($request->all(), [
-        'driver_id' => 'required|exists:app_users,id',
+        'user_id' => 'required|exists:app_users,id',
         'amount' => 'required|numeric|min:10|max:5000',
         'name' => 'required|string',
         'number' => 'required|string|size:16',
@@ -219,9 +220,9 @@ public function chargeOnlineSecure(Request $request)
         return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
     }
 
-    // ✅ NEW: Security checks
+    // ✅ Security checks
     $securityService = new \App\Services\PaymentSecurityService();
-    $securityCheck = $securityService->checkWalletSecurity($request->driver_id);
+    $securityCheck = $securityService->checkWalletSecurity($request->user_id);
     
     if (!$securityCheck['allowed']) {
         return response()->json(['success' => false, 'message' => $securityCheck['reason']], 403);
@@ -233,32 +234,15 @@ public function chargeOnlineSecure(Request $request)
         return response()->json(['success' => false, 'message' => 'Daily limit exceeded'], 403);
     }
 
-    // ❌ REMOVE THIS: Payment Log Service (No longer needed)
-    // $logService = new \App\Services\PaymentLogService();
-    // $transactionId = \App\Models\PaymentLog::generateTransactionId();
-
-    // $paymentLog = $logService->createLog([
-    //     'transaction_id' => $transactionId,
-    //     'user_id' => $request->driver_id,
-    //     'user_type' => 'driver',
-    //     'payment_type' => 'wallet_recharge',
-    //     'amount' => $request->amount,
-    //     'net_amount' => $request->amount,
-    //     'status' => 'pending',
-    //     'wallet_id' => $wallet->id,
-    //     'gateway_request' => $securityService->sanitizePaymentData($request->all()),
-    // ]);
-
     // ✅ Use existing Moyasar integration
     $response = Http::withBasicAuth(env('MOYASAR_API_KEY'), '')
         ->post('https://api.moyasar.com/v1/payments', [
             'amount' => $request->amount * 100,
             'currency' => 'SAR',
-            'description' => 'شحن رصيد للسائق', // ❌ Remove transactionId from description
+            'description' => 'شحن رصيد للسائق',
             'callback_url' => url('api/wallet/charge/callback/secure'),
             'metadata' => [
-                'driver_id' => $request->driver_id,
-                // 'transaction_id' => $transactionId, // ❌ Remove transaction_id
+                'driver_id' => $request->user_id,
                 'client_type' => 'جهة',
                 'client_id' => \App\Models\Geha::where('name', 'تطبيق روز تاكسي')->value('id'),
                 'type' => 'قبض',
@@ -279,30 +263,22 @@ public function chargeOnlineSecure(Request $request)
 
     if ($response->successful()) {
         $payment = $response->json();
-        // ❌ REMOVE: Payment log update
-        // $paymentLog->update([
-        //     'payment_gateway_id' => $payment['id'],
-        //     'status' => 'processing'
-        // ]);
         
         return response()->json([
             'success' => true,
             'message' => 'Payment initiated',
-            // 'transaction_id' => $transactionId, // ❌ Remove transaction_id
             'redirect_url' => $payment['source']['transaction_url']
         ]);
     }
 
-    // ❌ REMOVE: Payment log failure update
-    // $logService->updateLogStatus($transactionId, 'failed', $response->json());
-    $securityService->logFailedAttempt($request->driver_id, 'Payment gateway rejected');
+    $securityService->logFailedAttempt($request->user_id, 'Payment gateway rejected');
 
     return response()->json(['success' => false, 'message' => '❌ فشل إرسال الطلب'], 400);
 }
 
-/**
- * ✅ OPTIONAL: Secure callback with SMS notification
- */
+// =================================================
+// 🔧 FIX: UPDATE DAILY_SPENT IN SECURE CALLBACK
+// =================================================
 public function chargeCallbackSecure(Request $request)
 {
     $paymentId = $request->get('id');
@@ -321,10 +297,7 @@ public function chargeCallbackSecure(Request $request)
         }
 
         $payment = $response->json();
-        // ❌ REMOVE: transaction_id check
-        // $transactionId = $payment['metadata']['transaction_id'] ?? null;
 
-        // if (!$transactionId || $payment['status'] !== 'paid') {
         if ($payment['status'] !== 'paid') {
             DB::rollBack();
             return redirect()->route('showTransportBox')->with('error', '❌ الدفع لم يكتمل.');
@@ -344,7 +317,19 @@ public function chargeCallbackSecure(Request $request)
         }
 
         $wallet->current_balance += $amount;
+        // ✅ FIX: INCREMENT DAILY_SPENT
+        $wallet->daily_spent += $amount;
         $wallet->save();
+
+        // ✅ FIX: RESET FAILED ATTEMPTS ON SUCCESS
+        if ($wallet->failed_attempts > 0) {
+            $wallet->update([
+                'failed_attempts' => 0,
+                'is_locked' => false,
+                'locked_at' => null,
+                'locked_reason' => null
+            ]);
+        }
 
         $wallet->details()->create([
             'name' => 'قبض',
@@ -352,10 +337,6 @@ public function chargeCallbackSecure(Request $request)
             'details' => 'شحن رصيد عن طريق بوابة الدفع',
             'transaction_date' => now()->toDateString()
         ]);
-
-        // ❌ REMOVE: Payment log update
-        // $logService = new \App\Services\PaymentLogService();
-        // $logService->updateLogStatus($transactionId, 'completed', $payment);
 
         // ✅ Create Snd (existing system)
         $snd = new \App\Models\Snd();
@@ -372,7 +353,7 @@ public function chargeCallbackSecure(Request $request)
 
         DB::commit();
 
-        // ✅ SMS NON-BLOCKING (Transaction complete hone ke baad)
+        // ✅ SMS NON-BLOCKING
         $user = \App\Models\AppUser::find($meta['driver_id']);
         if ($user && $user->mobile) {
             $this->sendNonBlockingSms(
@@ -401,15 +382,13 @@ public function chargeCallbackSecure(Request $request)
     }
 
 
-
 /**
  * ✅ NON-BLOCKING SMS FUNCTION - Simple & Professional
  */
 private function sendNonBlockingSms($mobile, $message, $userId = null, $amount = null)
 {
     try {
-        // ✅ Quick HTTP call with short timeout - Non blocking
-        Http::timeout(5) // Only 5 seconds wait
+        Http::timeout(5)
             ->withHeaders([
                 'Authorization' => 'Bearer ' . config('services.taqnyat.bearer_token'),
                 'Content-Type' => 'application/json',
@@ -426,14 +405,11 @@ private function sendNonBlockingSms($mobile, $message, $userId = null, $amount =
         ]);
 
     } catch (\Exception $e) {
-        // ✅ SMS fail hone par bhi log karo but error throw mat karo
         \Log::warning('SMS sending failed but transaction completed', [
             'user_id' => $userId,
             'mobile' => $mobile,
             'error' => $e->getMessage()
         ]);
-        
-        // ❌ NO EXCEPTION THROW - Transaction already completed
     }
 }
 

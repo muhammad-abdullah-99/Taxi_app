@@ -53,8 +53,8 @@ class DriverPaymentController extends Controller
 
         $payments = $query->orderBy('paid_at', 'desc')->paginate(50);
         
-        $totalPaid = $payments->sum('driver_amount'); // ✅ FIX: Use $payments instead of $query
-        $totalFees = $payments->sum('operating_fee'); // ✅ FIX: Use $payments instead of $query
+        $totalPaid = $payments->sum('driver_amount');
+        $totalFees = $payments->sum('operating_fee');
 
         return view('admin.transport.payouts.history', compact('payments', 'totalPaid', 'totalFees'));
     }
@@ -64,18 +64,6 @@ class DriverPaymentController extends Controller
      */
     public function markAsPaid(Request $request, $paymentId)
     {
-        // ❌ REMOVE VALIDATION
-        // $validator = \Validator::make($request->all(), [
-        //     'admin_reference' => 'required|string|max:100',
-        //     'admin_notes' => 'nullable|string|max:500'
-        // ]);
-
-        // if ($validator->fails()) {
-        //     return redirect()->back()
-        //         ->withErrors($validator)
-        //         ->withInput();
-        // }
-
         DB::beginTransaction();
         try {
             $payment = DriverPayment::where('payment_id', $paymentId)
@@ -89,26 +77,24 @@ class DriverPaymentController extends Controller
             // ✅ UPDATE PAYMENT STATUS
             $payment->update([
                 'status' => 'paid',
-                // 'admin_reference' => $request->admin_reference,
-                // 'admin_notes' => $request->admin_notes,
                 'marked_by' => auth()->id(),
                 'paid_at' => now()
             ]);
 
             // ✅ UPDATE STATION WALLET STATUS TO 'released'
-            $stationWallet = StationWallet::where('travel_id', $payment->travel_id)->first(); // ✅ FIX: Use correct model
+            $stationWallet = StationWallet::where('travel_id', $payment->travel_id)->first();
             if ($stationWallet) {
                 $stationWallet->update(['payment_status' => 'released']);
             }
 
             DB::commit();
 
-            // ✅ SEND SMS TO DRIVER
+            // ✅ FIX: USE payment_id INSTEAD OF UNDEFINED admin_reference
             $driver = AppUser::find($payment->driver_id);
             if ($driver && $driver->mobile) {
                 $this->sendNonBlockingSms(
                     $driver->mobile,
-                    "تم تحويل مبلغ {$payment->driver_amount} ريال إلى حسابك البنكي.\nالمرجع: {$request->admin_reference}",
+                    "تم تحويل مبلغ {$payment->driver_amount} ريال إلى حسابك البنكي.\nرقم العملية: {$payment->payment_id}",
                     $driver->id
                 );
             }
@@ -127,16 +113,6 @@ class DriverPaymentController extends Controller
      */
     public function cancelPayment(Request $request, $paymentId)
     {
-        // $validator = \Validator::make($request->all(), [
-        //     'reason' => 'required|string|max:500'
-        // ]);
-
-        // if ($validator->fails()) {
-        //     return redirect()->back()
-        //         ->withErrors($validator)
-        //         ->withInput();
-        // }
-
         DB::beginTransaction();
         try {
             $payment = DriverPayment::where('payment_id', $paymentId)
@@ -149,7 +125,6 @@ class DriverPaymentController extends Controller
 
             $payment->update([
                 'status' => 'cancelled',
-                // 'admin_notes' => $request->reason,
                 'marked_by' => auth()->id()
             ]);
 
@@ -161,6 +136,7 @@ class DriverPaymentController extends Controller
             return redirect()->back()->with('error', '❌ حدث خطأ');
         }
     }
+
 
     /**
      * Non-blocking SMS function

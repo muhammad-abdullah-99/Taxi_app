@@ -176,15 +176,3 @@
         Route::post('/close-direct/{ticket}', [SupportController::class, 'closeTicketDirect'])->name('support.closeTicketDirect');
         Route::post('/reopen-ticket/{ticket}', [SupportController::class, 'reopenTicket'])->name('support.reopenTicket');
     });
-
-
- // ==========================================
-// ✅ NEW: SAVED CARDS ROUTES
-// ===========================================
-Route::group(['prefix' => 'cards'], function ($router) {
-    Route::post('/save', [PaymentCardController::class, 'saveCard']);
-    Route::post('/charge', [PaymentCardController::class, 'chargeWithSavedCard']);
-    Route::get('/list/{user_id}', [PaymentCardController::class, 'getSavedCards']);
-    Route::delete('/{card_id}', [PaymentCardController::class, 'deleteCard']);
-    Route::put('/{card_id}/set-default', [PaymentCardController::class, 'setDefaultCard']);
-});

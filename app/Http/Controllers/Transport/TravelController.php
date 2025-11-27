@@ -912,12 +912,14 @@ public function cancelTravelByPassenger($travelId, $passengerId, $lang = 'en')
         $freeCancellationWindowHours = $bookingAdvanceHours / 2;
         
         // Time remaining until trip starts (in hours)
-        $hoursRemainingUntilTrip = $currentTime->diffInHours($travelDateTime, false);
+        // $hoursRemainingUntilTrip = $currentTime->diffInHours($travelDateTime, false);
+        $hoursPassedSinceBooking = $bookingTime->diffInHours($currentTime, false);
         
         // ✅ DETERMINE: can_cancel_free
         // TRUE = Cancelling WITHIN free window (more time remaining than window)
         // FALSE = Cancelling AFTER free window expires (less time remaining)
-        $canCancelFree = ($hoursRemainingUntilTrip > $freeCancellationWindowHours);
+        // $canCancelFree = ($hoursRemainingUntilTrip > $freeCancellationWindowHours);
+        $canCancelFree = ($hoursPassedSinceBooking <= $freeCancellationWindowHours);
 
         // ✅ CALCULATE REFUND PERCENTAGE
         $driverAssignedTime = $travel->driver_assigned_at
@@ -1023,7 +1025,8 @@ public function cancelTravelByPassenger($travelId, $passengerId, $lang = 'en')
                 'can_cancel_free' => $canCancelFree,
                 'booking_advance_hours' => round($bookingAdvanceHours, 1),
                 'free_cancellation_window_hours' => round($freeCancellationWindowHours, 1),
-                'hours_remaining_until_trip' => round($hoursRemainingUntilTrip, 1),
+                // 'hours_remaining_until_trip' => round($hoursRemainingUntilTrip, 1),
+                'hours_passed_since_booking' => round($hoursPassedSinceBooking, 1),
                 'hours_since_driver_assigned' => round($hoursSinceAssignment, 1),
                 'saudi_current_time' => $currentTime->format('Y-m-d H:i:s')
             ]

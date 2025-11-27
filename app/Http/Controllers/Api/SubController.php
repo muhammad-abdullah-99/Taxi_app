@@ -97,6 +97,19 @@ class SubController extends Controller
     // }
 function createSubscription(Request $request)
 {
+    // ✅ ADD: Prevent duplicate subscription processing
+    $cacheKey = "subscription_{$request->user_id}_{$request->package_id}";
+    
+    if (\Cache::has($cacheKey)) {
+        return response()->json([
+            'error' => $request->input('lang') == 'ar' 
+                ? 'جاري معالجة الاشتراك. يرجى الانتظار.' 
+                : 'Subscription processing. Please wait.'
+        ], 400);
+    }
+    
+    \Cache::put($cacheKey, true, 10); // Lock for 10 seconds
+
     try {
         DB::beginTransaction();
 
@@ -104,11 +117,13 @@ function createSubscription(Request $request)
 
         $user = AppUser::find($request->user_id);
         if (!$user) {
+            \Cache::forget($cacheKey);
             return response()->json(['error' => $lang == 'ar' ? 'المستخدم غير موجود' : 'User not found'], 404);
         }
 
         $package = PackageType::find($request->package_id);
         if (!$package || !$package->is_active) {
+            \Cache::forget($cacheKey);
             return response()->json(['error' => $lang == 'ar' ? 'الباقة غير متوفرة أو غير مفعلة' : 'Package not found or inactive'], 400);
         }
 
@@ -120,39 +135,37 @@ function createSubscription(Request $request)
             ->first();
 
         if ($currentSub) {
+            \Cache::forget($cacheKey);
             return response()->json([
                 'error' => $lang == 'ar' ? 'لديك اشتراك نشط في هذه الباقة بالفعل' : 'You already have an active subscription for this package'
             ], 400);
         }
 
-        // $wallet = Wallet::where('user_id', $request->user_id)->first();
         $wallet = Wallet::where('user_id', $request->user_id)->lockForUpdate()->first();        
 
         if (!$wallet) {
+            \Cache::forget($cacheKey);
             return response()->json(['error' => $lang == 'ar' ? 'المحفظة غير موجودة' : 'Wallet not found'], 400);
         }
 
         if ($wallet->current_balance < $package->cost) {
+            \Cache::forget($cacheKey);
             return response()->json(['error' => $lang == 'ar' ? 'الرصيد غير كافٍ' : 'Insufficient balance'], 400);
         }
 
         // ✅ DEDUCT FROM DRIVER
         $wallet->current_balance -= $package->cost;
-        $wallet->daily_spent += $package->cost;
+        $wallet->daily_spent += $package->cost; // ✅ Already correct!
         $wallet->save();
 
         $wallet->details()->create([
             'name' => 'صرف',
-            'amount' => -$package->cost, // ✅ NEGATIVE = outgoing
+            'amount' => -$package->cost,
             'details' => 'شحن باقة ' . $package->name . ' ' . $package->type,
             'transaction_date' => now()->toDateString()
         ]);
 
         // ✅ ADD TO PACKAGE WALLET (USER_ID = 0)
-        // $packageWallet = Wallet::firstOrCreate(
-        //     ['user_id' => 0],
-        //     ['current_balance' => 0, 'total_recharge' => 0]
-        // );
         $packageWallet = Wallet::where('user_id', 0)->lockForUpdate()->first();
         if (!$packageWallet) {
             $packageWallet = Wallet::create([
@@ -181,14 +194,12 @@ function createSubscription(Request $request)
             ->first();
 
         if ($existingSubscription) {
-            // ✅ UPDATE EXISTING SUBSCRIPTION
             $existingSubscription->update([
                 'status' => 'active',
                 'expire_at' => $expireAt,
                 'updated_at' => now()
             ]);
         } else {
-            // ✅ CREATE NEW SUBSCRIPTION
             Subscription::create([
                 'user_id' => $request->user_id,
                 'package_id' => $request->package_id,
@@ -207,6 +218,9 @@ function createSubscription(Request $request)
 
         DB::commit();
         
+        // ✅ CLEAR CACHE LOCK AFTER SUCCESS
+        \Cache::forget($cacheKey);
+        
         return response()->json([
             'message' => $lang == 'ar' ? 'تم إنشاء/تحديث الاشتراك بنجاح' : 'Subscription created/updated successfully',
             'expire_at' => $expireAt
@@ -214,6 +228,10 @@ function createSubscription(Request $request)
     
     } catch (\Exception $e) {
         DB::rollBack();
+        
+        // ✅ CLEAR CACHE LOCK ON ERROR
+        \Cache::forget($cacheKey);
+        
         return response()->json([
             'error' => $lang == 'ar' ? 'حدث خطأ ما' : 'Something went wrong',
             'details' => $e->getMessage()

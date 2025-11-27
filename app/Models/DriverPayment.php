@@ -18,8 +18,6 @@ class DriverPayment extends Model
         'operating_fee',
         'driver_amount',
         'status',
-        'admin_reference',
-        'admin_notes',
         'marked_by',
         'trip_completed_at',
         'paid_at'
