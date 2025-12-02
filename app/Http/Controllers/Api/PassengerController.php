@@ -39,7 +39,10 @@ class PassengerController extends Controller
      */
     public function create(Request $request)
     {
-        $lang = $request->get('lang', 'en');
+        $lang = $request->header('lang') 
+        ?? $request->header('Lang') 
+        ?? $request->header('Accept-Language')
+        ?? $request->get('lang', 'en');
 
         DB::beginTransaction();
         try {
@@ -326,7 +329,10 @@ private function handleClientTravel(Request $request, array $travelData, $lang)
      */
     public function update(Request $request, $id)
     {
-        $lang = $request->get('lang', 'en');
+        $lang = $request->header('lang') 
+        ?? $request->header('Lang') 
+        ?? $request->header('Accept-Language')
+        ?? $request->get('lang', 'en');
 
         DB::beginTransaction();
         try {
@@ -368,7 +374,10 @@ private function handleClientTravel(Request $request, array $travelData, $lang)
      */
     public function delete($id, Request $request)
     {
-        $lang = $request->get('lang', 'en');
+        $lang = $request->header('lang') 
+        ?? $request->header('Lang') 
+        ?? $request->header('Accept-Language')
+        ?? $request->get('lang', 'en');
         $passenger = Passenger::findOrFail($id);
         $passenger->delete();
 
@@ -384,7 +393,10 @@ private function handleClientTravel(Request $request, array $travelData, $lang)
      */
     public function deletePassenger($id, Request $request)
     {
-        $lang = $request->get('lang', 'en');
+        $lang = $request->header('lang') 
+        ?? $request->header('Lang') 
+        ?? $request->header('Accept-Language')
+        ?? $request->get('lang', 'en');
         $passenger = PassengerList::findOrFail($id);
         $passengerId = $passenger->passenger_id;
         
@@ -407,7 +419,10 @@ private function handleClientTravel(Request $request, array $travelData, $lang)
      */
     public function getAll($driver, Request $request)
     {
-        $lang = $request->get('lang', 'en');
+        $lang = $request->header('lang') 
+        ?? $request->header('Lang') 
+        ?? $request->header('Accept-Language')
+        ?? $request->get('lang', 'en');
         $passengers = Passenger::where('user_id', $driver)->with('list')->get();
 
         $message = ($lang == 'ar') 
@@ -426,7 +441,10 @@ private function handleClientTravel(Request $request, array $travelData, $lang)
      */
     public function getOne($id, Request $request)
     {
-        $lang = $request->get('lang', 'en');
+        $lang = $request->header('lang') 
+        ?? $request->header('Lang') 
+        ?? $request->header('Accept-Language')
+        ?? $request->get('lang', 'en');
         $passenger = Passenger::with('list')->findOrFail($id);
 
         $message = ($lang == 'ar') 
@@ -573,7 +591,10 @@ public function downloadPassengerPDFMobile($id)
      */
     public function upgradeToDriver(Request $request)
     {
-        $lang = $request->lang ?? 'en';
+        $lang = $request->header('lang') 
+        ?? $request->header('Lang') 
+        ?? $request->header('Accept-Language')
+        ?? $request->get('lang', 'en');
 
         $messages = [
             'en' => [
