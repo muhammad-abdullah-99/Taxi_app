@@ -124,23 +124,23 @@ public function login(Request $request)
         ], 422);
     }
 
-    // ✅ Pehle check karo user exist karta hai
-    $anyUser = AppUser::where('mobile', $request->mobile)
-        ->where('name', '!=', 'guest')
-        ->first();
+    // // ✅ Pehle check karo user exist karta hai
+    // $anyUser = AppUser::where('mobile', $request->mobile)
+    //     ->where('name', '!=', 'guest')
+    //     ->first();
 
-    // ✅ SPECIAL RULE: Agar Passenger hai aur Driver app se login kar raha hai - BLOCK
-    if ($anyUser && $anyUser->user_type == 'Passenger' && $request->has('user_type') && $request->user_type == 'Driver') {
-       $accountType = $lang == 'ar' ? 'راكب' : 
-                     ($lang == 'ur' ? 'مسافر' : 'Passenger');
-        $errorMessage = str_replace('{type}', $accountType, $messages['wrong_account_type']);
+    // // ✅ SPECIAL RULE: Agar Passenger hai aur Driver app se login kar raha hai - BLOCK
+    // if ($anyUser && $anyUser->user_type == 'Passenger' && $request->has('user_type') && $request->user_type == 'Driver') {
+    //    $accountType = $lang == 'ar' ? 'راكب' : 
+    //                  ($lang == 'ur' ? 'مسافر' : 'Passenger');
+    //     $errorMessage = str_replace('{type}', $accountType, $messages['wrong_account_type']);
         
-        return response()->json([
-            'success' => false,
-            'message' => $errorMessage,
-            'registered_as' => $anyUser->user_type,
-        ], 403);
-    }
+    //     return response()->json([
+    //         'success' => false,
+    //         'message' => $errorMessage,
+    //         'registered_as' => $anyUser->user_type,
+    //     ], 403);
+    // }
 
     // ✅ User dhundho - Driver ho ya Passenger, dono Passenger app use kar sakte hain
     $user = AppUser::where('mobile', $request->mobile)
@@ -149,10 +149,10 @@ public function login(Request $request)
         ->select('*') // ✅ Ensure address field is included
         ->first();
 
-    // ✅ Agar user nahi mila toh guest try karo
-    if (!$user) {
-        $user = AppUser::where('name', 'guest')->first();
-    }
+    // // ✅ Agar user nahi mila toh guest try karo
+    // if (!$user) {
+    //     $user = AppUser::where('name', 'guest')->first();
+    // }
 
     // ✅ Agar ab bhi user nahi mila
     if (!$user) {
@@ -169,15 +169,28 @@ public function login(Request $request)
             'message' => $errorMessage,
         ], 404);
     }
+
+    // ✅ SPECIAL RULE: Agar Passenger hai aur Driver app se login kar raha hai - BLOCK
+     if ($user->user_type == 'Passenger' && $request->has('user_type') && $request->user_type == 'Driver') {
+       $accountType = $lang == 'ar' ? 'راكب' : 
+                     ($lang == 'ur' ? 'مسافر' : 'Passenger');
+        $errorMessage = str_replace('{type}', $accountType, $messages['wrong_account_type']);
+        
+        return response()->json([
+            'success' => false,
+            'message' => $errorMessage,
+            'registered_as' => $user->user_type,
+        ], 403);
+    }   
     
     // ✅ Status check - SIRF Driver app ke liye
     // Agar Driver hai aur Driver app se login kar raha hai aur status null/0 hai
     if ($user->user_type == 'Driver' && $request->has('user_type') && $request->user_type == 'Driver' && !$user->status) {
         return response()->json([
-            'success' => true,
+            'success' => false,
             'user' => $user,
             'message' => $messages['account_pending'],
-        ], 200);
+        ], 403);
     }
 
     // ✅ OTP generation - ONLY for real users (not guest)
